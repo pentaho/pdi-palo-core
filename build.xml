@@ -1,0 +1,74 @@
+<project name="palo-core" default="dist">
+
+	<!-- set global properties for this build -->
+	<property name="src" value="src" />
+	<property name="dest" value="bin"/>
+	<property name="dist" value="dist"/>
+	<property name="ui"   value="ui"/>
+	<property name="libext" value="libext"/>
+	<property name="libswt" value="libswt"/>
+	<property name="version" value="1.0" />
+
+	<path id="project.class.path">
+		<fileset dir="lib">
+			<include name="**/*.jar" />
+		</fileset>
+	</path>
+	
+	<target name="init">
+		<!-- Create the build directory structure used by compile -->
+		<tstamp />
+		<mkdir dir="${dist}" />
+		<mkdir dir="${dest}" />
+	</target>
+	
+	<target name="compile" depends="init">
+		<!-- Compile the java code from ${src} into ${dest} -->
+		<javac 
+			debug="on" 
+			encoding="UTF-8" 
+			target="1.5" 
+			source="1.5" 
+			srcdir="${src}" 
+			destdir="${dest}" 
+			classpathref="project.class.path">
+			
+	    	<classpath id="project.class.path">
+				<fileset dir="${libext}" 		includes="**/*.jar *.zip"/>
+				<fileset dir="${libswt}/"	    includes="**/*.jar *.zip"/>
+		  	</classpath>
+
+		</javac>
+	</target>
+	
+    <!-- embedd the UI definition files in the jar so that webstart etc will work -->
+	<target name="copy">
+	    <copy todir="${dest}">
+    		<fileset dir="${src}" includes="**/*.png **/*.xml **/*.xul **/*.properties"/>
+  	    </copy>
+    </target>
+	
+	<target name="clean">
+		<!-- Delete the ${dest} and ${dist} directory tree -->
+		<delete dir="${dest}" />
+		<delete dir="${dist}" />
+	</target>
+	
+	<target name="dist" depends="compile,copy">
+		<!-- Create the distribution directory -->
+		<jar 
+			jarfile="${dist}/palo-core.jar" 
+			index="true">
+			<fileset dir="${dest}"> <include name="**/*"/></fileset>
+			
+			<manifest>
+				<attribute name="Manifest-Version" value="${version}.${DSTAMP}" />
+				<attribute name="Implementation-Title" value="DummyJob" />
+				<attribute name="Implementation-Version" value="${build.number}" />
+				<attribute name="Implementation-Vendor" value="Vendor" />
+			</manifest>
+
+		</jar>
+	</target>
+	<target name="rebuild" depends="compile" />
+</project>
