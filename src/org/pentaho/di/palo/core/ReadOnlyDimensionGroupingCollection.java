@@ -1,5 +1,7 @@
 package org.pentaho.di.palo.core;
 
+import java.util.Iterator;
+
 /*
  *   This file is part of PaloKettlePlugin.
  *
@@ -55,4 +57,8 @@ public final class ReadOnlyDimensionGroupingCollection extends DimensionGrouping
 	public DimensionGrouping remove(int i) {
 		throw new UnsupportedOperationException();
 	}
+	
+	public Iterator<DimensionGrouping> iterator() {
+        return list.iterator();
+    }
 }
