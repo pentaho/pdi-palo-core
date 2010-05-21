@@ -101,6 +101,7 @@ public class PaloHelper implements DatabaseFactoryInterface {
             ConnectionConfiguration connConfig = new ConnectionConfiguration(databaseMeta.getHostname(), databaseMeta.getDatabasePortNumberString());
             connConfig.setUser(databaseMeta.getUsername());
             connConfig.setPassword(databaseMeta.getPassword());
+            connConfig.setLoadOnDemand(true);
             connection = ConnectionFactory.getInstance().newConnection(connConfig);
             database = connection.getDatabaseByName(databaseMeta.getDatabaseName());
 

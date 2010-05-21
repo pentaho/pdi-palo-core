@@ -6,7 +6,7 @@
 	<property name="dist" value="dist"/>
 	<property name="ui"   value="ui"/>
 	<property name="libext" value="libext"/>
-	<property name="version" value="1.01" />
+	<property name="version" value="1.02" />
 
 	<path id="project.class.path">
 		<fileset dir="lib">
