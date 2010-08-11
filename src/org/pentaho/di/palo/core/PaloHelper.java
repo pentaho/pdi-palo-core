@@ -402,7 +402,7 @@ public class PaloHelper implements DatabaseFactoryInterface {
     }
 
 
-    public final void addDimension(String dimensionName, DimensionGroupingCollection dimension, boolean createIfNotExists, boolean clearDimension, String elementType) throws KettleException {
+    public final void addDimension(String dimensionName, DimensionGroupingCollection dimension, boolean createIfNotExists, boolean clearDimension, boolean clearConsolidations, String elementType) throws KettleException {
             //if the dimension does not exist we create it
             Dimension dim = database.getDimensionByName(dimensionName);
             if (dim == null) {
@@ -411,6 +411,18 @@ public class PaloHelper implements DatabaseFactoryInterface {
                 } else 
                     throw new KettleException("The dimension "+dimensionName + " does not exist.");
             }
+            
+            if (clearConsolidations){
+            	ArrayList<Element> toDeleteArr = new ArrayList<Element>();
+            	
+            	for (Element e : dim.getDefaultHierarchy().getElements())
+            		if (e.getChildCount() > 0)
+            			toDeleteArr.add(e);
+            	                                  
+            	if (toDeleteArr.size() > 0)
+            		dim.getDefaultHierarchy().removeElements(toDeleteArr.toArray(new Element [0]));
+            }
+            
             if(clearDimension) {
                 dim.getDefaultHierarchy().removeElements(dim.getDefaultHierarchy().getElements());
             }
