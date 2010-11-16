@@ -1,72 +1,128 @@
-<project name="palo-core" default="dist">
+<!--===========================================================================
+  This is the build file for the Pentaho Agile BI Project
+  
+  This build file will use the subfloor.xml file as the default build
+  process and should only override the tasks that need to differ from
+  the common build file.
+  
+  See subfloor.xml for more details
+============================================================================-->
+<project name="PDI Palo Plugin" basedir="." default="dist" xmlns:ivy="antlib:org.apache.ivy.ant">
 
-	<!-- set global properties for this build -->
-	<property name="src" value="src" />
-	<property name="dest" value="bin"/>
-	<property name="dist" value="dist"/>
-	<property name="ui"   value="ui"/>
-	<property name="libext" value="libext"/>
-	<property name="version" value="1.02" />
+	<description>
+	  This build file is used to create the Agile BI project
+		and works with the subfloor.xml file.
+	</description>
 
-	<path id="project.class.path">
-		<fileset dir="lib">
-			<include name="**/*.jar" />
-		</fileset>
+	<!-- Import the common_build.xml file which contains all the default tasks -->
+	<import file="build-res/subfloor-pkg.xml" />
+
+	<property name="libswt" location="libswt" />
+	<property name="swt.os" value="win32" />
+	<property name="pdiwithpaloplugin" value="pdi-ce-palo" description="Name of the pdi distribution with palo plugin" />
+
+	<property name="plugin.destination" location="kettle-dist" />
+
+
+	<path id="cp-meta">
+		<fileset dir="${libswt}" includes="*.jar" />
+		<fileset dir="${libswt}/${swt.os}/" includes="*.jar" />
 	</path>
-	
-	<target name="init">
-		<!-- Create the build directory structure used by compile -->
-		<tstamp />
-		<mkdir dir="${dist}" />
-		<mkdir dir="${dest}" />
-	</target>
-	
-	<target name="compile" depends="init">
-		<!-- Compile the java code from ${src} into ${dest} -->
-		<javac 
-			debug="on" 
-			encoding="UTF-8" 
-			target="1.5" 
-			source="1.5" 
-			srcdir="${src}" 
-			destdir="${dest}" 
-			classpathref="project.class.path">
-			
-	    	<classpath id="project.class.path">
-				<fileset dir="${libext}" 		includes="**/*.jar *.zip"/>
-		  	</classpath>
 
+	<!-- override compile.compile to include custom classpath and do resource copying -->
+	<target name="compile.compile" depends="init">
+		<javac destdir="${classes.dir}" debug="${javac.debug}" deprecation="${javac.deprecation}" fork="true" source="${javac.source}" target="${javac.target}">
+			<classpath>
+				<path refid="classpath" />
+				<path refid="cp-meta" />
+			</classpath>
+			<src path="${src.dir}" />
 		</javac>
 	</target>
-	
-    <!-- embedd the UI definition files in the jar so that webstart etc will work -->
-	<target name="copy">
-	    <copy todir="${dest}">
-    		<fileset dir="${src}" includes="**/*.png **/*.xml **/*.xul **/*.properties"/>
-  	    </copy>
-    </target>
-	
-	<target name="clean">
-		<!-- Delete the ${dest} and ${dist} directory tree -->
-		<delete dir="${dest}" />
-		<delete dir="${dist}" />
-	</target>
-	
-	<target name="dist" depends="compile,copy">
-		<!-- Create the distribution directory -->
-		<jar 
-			jarfile="${dist}/palo-core.jar" 
-			index="true">
-			<fileset dir="${dest}"> <include name="**/*"/></fileset>
-			
-			<manifest>
-				<attribute name="Manifest-Version" value="${version}.${DSTAMP}" />
-				<attribute name="Implementation-Title" value="DummyJob" />
-				<attribute name="Implementation-Version" value="${build.number}" />
-				<attribute name="Implementation-Vendor" value="Vendor" />
-			</manifest>
 
-		</jar>
+	<target name="resolve" depends="resolve-default, resolve-test, ivy.check-releasable" description="Retrieves all the dependent libraries" />
+
+	<target name="dist-noresolve" depends="jar,package" description="Builds and packages the application" />
+	<target name="dist" depends="resolve,jar,package" description="Builds and packages the application" />
+
+	<target name="clean-dist">
+		<delete dir="${dist.dir}" />
+		<delete dir="${stage.dir}" />
+		<delete dir="${platform.unzip.dir}" />
 	</target>
-	<target name="rebuild" depends="compile" />
+
+	<!--
+      AS STATED ABOVE, THE ONLY TASKS THAT SHOULD EXIST IN THIS BUILD FILE ARE
+      THE TASKS THAT NEED TO DIFFER FROM THE DEFAULT IMPLEMENTATION OF THE TASKS
+      FOUND IN subfloor.xml.
+    -->
+
+	<target name="assemble.init">
+		<mkdir dir="${stage.dir}" />
+	</target>
+
+	<target name="assemble.copy-libs">
+		<copy todir="${stage.dir}/${ivy.artifact.id}/lib">
+			<fileset dir="${lib.dir}">
+				<exclude name="kettle-*.jar" />
+				<exclude name="jpalo*.jar" />
+			</fileset>
+		</copy>
+		<copy todir="${stage.dir}/${ivy.artifact.id}">
+			<fileset file="${dist.dir}/${ivy.artifact.id}-${project.revision}.jar" />
+		</copy>
+	</target>
+
+	<!-- this target builds a kettle release that includes the plugin -->
+	<target name="kettle-w-plugin-dist">
+		<unzip dest="${bin.dir}/kettle-dist">
+			<fileset dir="${kettle.dist.dir}">
+				<exclude name="*-javadoc-*.zip" />
+				<exclude name="*-src-*.zip" />
+				<include name="pdi-ce-${project.revision}.zip" />
+			</fileset>
+		</unzip>
+
+		<available file="${bin.dir}/kettle-dist/data-integration" type="dir" property="plugin.destination" value="kettle-dist/data-integration" />
+
+		<unzip dest="${bin.dir}/${plugin.destination}">
+			<fileset dir="${dist.dir}">
+				<include name="${package.basename}.zip" />
+			</fileset>
+		</unzip>
+		<zip destfile="${dist.dir}/${pdiwithpaloplugin}.zip">
+			<zipfileset dir="${bin.dir}/kettle-dist" />
+		</zip>
+	</target>
+
+	<!-- we cannot ship jpalo (gpl) exclude it -->
+	<target name="package-zip">
+		<zip destfile="${dist.dir}/${package.basename}.zip">
+			<zipfileset dir="${stage.dir}">
+				<exclude name="**/jpalo*.jar" />
+			</zipfileset>
+		</zip>
+	</target>
+
+	<!-- we cannot ship jpalo (gpl) exclude it -->
+	<target name="package-targz">
+		<tar destfile="${dist.dir}/${package.basename}.tar.gz" longfile="gnu" compression="gzip">
+			<tarfileset dir="${stage.dir}" mode="755">
+				<include name="**/*.sh" />
+			</tarfileset>
+			<tarfileset dir="${stage.dir}">
+				<exclude name="**/*.sh" />
+				<exclude name="**/jpalo*.jar" />
+			</tarfileset>
+		</tar>
+	</target>
+
+	<target name="install-plugin">
+		<delete dir="${kettle.dist.dir}/libext/pdi-palo-plugin" />
+		<delete dir="${kettle.dist.dir}/plugins/pdi-palo-plugin" />
+		<unzip dest="${kettle.dist.dir}">
+			<fileset file="${dist.dir}/${package.basename}.zip" />
+		</unzip>
+	</target>
+
 </project>
