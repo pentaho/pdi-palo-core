@@ -17,7 +17,9 @@ package org.pentaho.di.palo.core;
  */
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.Hashtable;
 import java.util.List;
 import java.util.Set;
 
@@ -49,6 +51,7 @@ public class PaloHelper implements DatabaseFactoryInterface {
     private Connection connection;
     private DatabaseMeta databaseMeta;
     private final ListenersManager listeners;
+    private PaloCubeCache cubeCache;
 
 
     public PaloHelper() {
@@ -59,8 +62,8 @@ public class PaloHelper implements DatabaseFactoryInterface {
         this.databaseMeta = databaseMeta;
         this.listeners = new ListenersManager();
     }
-
-            public String getConnectionTestReport(DatabaseMeta databaseMeta) throws KettleDatabaseException {
+    
+    public String getConnectionTestReport(DatabaseMeta databaseMeta) throws KettleDatabaseException {
 		StringBuffer report = new StringBuffer();
 		
 		PaloHelper helper = new PaloHelper(databaseMeta);
@@ -81,7 +84,7 @@ public class PaloHelper implements DatabaseFactoryInterface {
 		}
 		
 		return report.toString();
-            }
+    }
 
     /**
      * Connect to a PALO server
@@ -97,19 +100,20 @@ public class PaloHelper implements DatabaseFactoryInterface {
         try {
 
             PaloHelper.connectingToPalo = true;
-
-            ConnectionConfiguration connConfig = new ConnectionConfiguration(databaseMeta.getHostname(), databaseMeta.getDatabasePortNumberString());
-            connConfig.setUser(databaseMeta.getUsername());
-            connConfig.setPassword(databaseMeta.getPassword());
+            
+            ConnectionConfiguration connConfig = new ConnectionConfiguration(databaseMeta.environmentSubstitute(databaseMeta.getHostname()), databaseMeta.environmentSubstitute(databaseMeta.getDatabasePortNumberString()));
+            connConfig.setUser(databaseMeta.environmentSubstitute(databaseMeta.getUsername()));
+            connConfig.setPassword(databaseMeta.environmentSubstitute(databaseMeta.getPassword()));
             connConfig.setLoadOnDemand(true);
+            connConfig.setTimeout(30000);
             connection = ConnectionFactory.getInstance().newConnection(connConfig);
-            database = connection.getDatabaseByName(databaseMeta.getDatabaseName());
+            database = connection.getDatabaseByName(databaseMeta.environmentSubstitute(databaseMeta.getDatabaseName()));
 
             PaloHelper.connectingToPalo = false;
 
             if (database == null) {
                 throw new KettleException("The specified database with name '" 
-                        + databaseMeta.getDatabaseName() 
+                        + databaseMeta.environmentSubstitute(databaseMeta.getDatabaseName())
                         + "' could not be found");
             }
         } catch (Exception e) {
@@ -245,34 +249,36 @@ public class PaloHelper implements DatabaseFactoryInterface {
         return rowMeta;
     }
     
-    public final RowMetaInterface getDimensionRowMeta(String dimensionName, List < PaloDimensionLevel > levels) 
+    public final RowMetaInterface getDimensionRowMeta(String dimensionName, List < PaloDimensionLevel > levels, boolean baseElementsOnly) 
             throws KettleException {
         
-        Dimension dimension = database.getDimensionByName(dimensionName);
+    	Dimension dimension = database.getDimensionByName(dimensionName);
 
-        RowMetaInterface rowMeta = new RowMeta();
-        if(dimension.getDefaultHierarchy().getMaxLevel() + 1 != levels.size())
-            throw new KettleException("Levels of the dimension differ from defined levels");
-        for ( int i = 0; i <= dimension.getDefaultHierarchy().getMaxLevel(); i++) {
-            String fieldName = levels.get(i).getFieldName();
-            if (fieldName == null || fieldName == "")
-                fieldName = dimensionName;
-            int type = -1;
-            if(levels.get(i).getFieldType().equals("String"))
-                type = ValueMetaInterface.TYPE_STRING;
-            else {
-                if (levels.get(i).getFieldType().equals("Number"))
-                    type = ValueMetaInterface.TYPE_NUMBER;
-                else
-                    throw new KettleException("Only String and Number Types are acepted dimension fields");
-            }
-            rowMeta.addValueMeta(new ValueMeta(fieldName, type));
-        }
-        return rowMeta;
+    	RowMetaInterface rowMeta = new RowMeta();
+    	
+    	if (baseElementsOnly && levels.size() != 1)
+    		throw new KettleException("Base elements should only have one level defined.");
+    	else if (baseElementsOnly == false && dimension.getDefaultHierarchy().getMaxLevel() + 1 != levels.size())
+    		throw new KettleException("Levels of the dimension differ from defined levels");
+    	
+    	for ( int i = 0; i < levels.size(); i++) {
+    		String fieldName = levels.get(i).getFieldName();
+    		if (fieldName == null || fieldName == "")
+    			fieldName = dimensionName;
+    		int type = -1;
+    		if(levels.get(i).getFieldType().equals("String"))
+    			type = ValueMetaInterface.TYPE_STRING;
+    		else {
+    			if (levels.get(i).getFieldType().equals("Number"))
+    				type = ValueMetaInterface.TYPE_NUMBER;
+    			else
+    				throw new KettleException("Only String and Number Types are acepted dimension fields");
+    		}
+    		rowMeta.addValueMeta(new ValueMeta(fieldName, type));
+    	}
+    	return rowMeta;
+
     }
-    
-    
-
    
     public final List <PaloDimensionLevel> getDimensionLevels(String dimensionName) throws KettleException {
         List < PaloDimensionLevel > levels = new ArrayList< PaloDimensionLevel >();
@@ -286,7 +292,7 @@ public class PaloHelper implements DatabaseFactoryInterface {
         return levels;
     }
 
-    public final List < Object[] > getDimensionRows(String dimensionName, RowMetaInterface rowMeta, final Listener listener) throws KettleException {
+    public final List < Object[] > getDimensionRows(String dimensionName, RowMetaInterface rowMeta, boolean baseElementsOnly, final Listener listener) throws KettleException {
         assert database != null;
         final List < Object[] > rows = new ArrayList < Object[] >();
         
@@ -294,29 +300,42 @@ public class PaloHelper implements DatabaseFactoryInterface {
         if (dimension == null) 
             throw new KettleException("Unable to find dimension '" + dimensionName + "' in the Palo database");
 
-        // We take the maximum depth of the dimension?
-        // That's the number of fields we are going to have
-        // + the name of the Dimension itself (to make sure we have it all :-))
-        // + the attributes / elements themselves 
-        //
-        final int rowSize = dimension.getDefaultHierarchy().getMaxDepth() + 1;
-        
-        // Loop over the elements...
-        //
-        final ElementNode[] elementsTree = dimension.getDefaultHierarchy().getElementsTree();
-        
-        final Object[] row = new Object[rowSize];
-                
-        this.listeners.prepareElements(elementsTree.length);
-        for (ElementNode node : elementsTree) {
-            this.showChildren(node);
-            this.assembleDimensionRows(rows, row, rowSize, dimension, node, 0, rowMeta, listener);
-            this.listeners.oneMoreElement(node);
+        if (baseElementsOnly){
+        	for (Element element : dimension.getDefaultHierarchy().getElements()){
+        		if (element.getChildCount() > 0)
+        			continue;
+
+        		Object[] row = {element.getName()};
+        		rows.add(row);
+        		this.listeners.oneMoreElement(element);
+        	}
+        }
+        else{
+
+        	// We take the maximum depth of the dimension?
+        	// That's the number of fields we are going to have
+        	// + the name of the Dimension itself (to make sure we have it all :-))
+        	// + the attributes / elements themselves 
+        	//
+        	final int rowSize = dimension.getDefaultHierarchy().getMaxDepth() + 1;
+
+        	// Loop over the elements...
+        	//
+        	final ElementNode[] elementsTree = dimension.getDefaultHierarchy().getElementsTree();
+
+        	final Object[] row = new Object[rowSize];
+
+        	this.listeners.prepareElements(elementsTree.length);
+        	for (ElementNode node : elementsTree) {
+        		// To debug
+        		// this.showChildren(node);
+        		this.assembleDimensionRows(rows, row, rowSize, dimension, node, 0, rowMeta, listener);
+        		this.listeners.oneMoreElement(node);
+        	}
         }
         
         return rows;
     }
-
     
     /**
      * Disconnect from the Palo server
@@ -371,29 +390,35 @@ public class PaloHelper implements DatabaseFactoryInterface {
         DimensionGroupingCollection previousLevel;
         int groupNumber = 0;
         
-        for (int col = columnsCount - 1; col >= 0; col--) {
+        for (int col = columnsCount - 2; col >= 0; col = col - 2) {
             previousLevel = currentLevel;
             currentLevel = new DimensionGroupingCollection();
            
             for (int row = 0; row < rowsCount; row++) {
                 
-                final String group = tableInputDimensions.get(row)[col];
+            	String [] currentRow = tableInputDimensions.get(row);
+                final String group = currentRow[col];
+                final double consolidation = Double.parseDouble(currentRow[col + 1]);
+                final int level = ((columnsCount - col) / 2) - 1;
+                	
                 final DimensionGrouping c;
-                if (!currentLevel.contains(group)) {
-                    if (col != columnsCount - 1) {
-                        c = new DimensionGrouping(group, "Group ".concat(String.valueOf(groupNumber)), columnsCount - col - 1);
+                if (!currentLevel.contains(group, consolidation)) {
+                    if (level == 0)
+                    	c = new DimensionGrouping(group, dimensionName, level, consolidation);
+                    else{
+                        c = new DimensionGrouping(group, "Group ".concat(String.valueOf(groupNumber)), level, consolidation);
                         groupNumber++;
-                    } else {
-                        c = new DimensionGrouping(group, dimensionName, columnsCount - col - 1);
-                    }
+                     }
                      currentLevel.add(c);
                  } else {
-                     c = currentLevel.find(group);
+                     c = currentLevel.find(group, consolidation);
                  }
-                 if (col != columnsCount - 1) {
-                     String childName = tableInputDimensions.get(row)[col + 1];
-                     if (!c.containsChild(childName)) {
-                         c.addChild(previousLevel.find(childName));
+                
+                 if (level > 0) {
+                     String childName = tableInputDimensions.get(row)[col + 2];
+                     final double childConsolidation = Double.parseDouble(tableInputDimensions.get(row)[col + 3]);
+                     if (!c.containsChild(childName, childConsolidation)) {
+                         c.addChild(previousLevel.find(childName, childConsolidation));
                      }
                  }
             }
@@ -402,34 +427,45 @@ public class PaloHelper implements DatabaseFactoryInterface {
     }
 
 
-    public final void addDimension(String dimensionName, DimensionGroupingCollection dimension, boolean createIfNotExists, boolean clearDimension, boolean clearConsolidations, String elementType) throws KettleException {
-            //if the dimension does not exist we create it
-            Dimension dim = database.getDimensionByName(dimensionName);
-            if (dim == null) {
-                if(createIfNotExists) {
-                    dim = database.addDimension(dimensionName);
-                } else 
-                    throw new KettleException("The dimension "+dimensionName + " does not exist.");
-            }
-            
-            if (clearConsolidations){
-            	ArrayList<Element> toDeleteArr = new ArrayList<Element>();
-            	
-            	for (Element e : dim.getDefaultHierarchy().getElements())
-            		if (e.getChildCount() > 0)
-            			toDeleteArr.add(e);
-            	                                  
-            	if (toDeleteArr.size() > 0)
-            		dim.getDefaultHierarchy().removeElements(toDeleteArr.toArray(new Element [0]));
-            }
-            
-            if(clearDimension) {
-                dim.getDefaultHierarchy().removeElements(dim.getDefaultHierarchy().getElements());
-            }
+    public final void addDimension(String dimensionName, DimensionGroupingCollection dimension, boolean createIfNotExists, boolean clearDimension, boolean clearConsolidations, boolean recreateDimension, boolean enableCache, boolean preloadCache, String elementType) throws Exception {
+    	// if the dimension does not exist we create it
+    	Dimension dim = database.getDimensionByName(dimensionName);
+    	if (dim == null) {
+    		if(createIfNotExists) {
+    			dim = database.addDimension(dimensionName);
+    		} else 
+    			throw new KettleException("The dimension "+dimensionName + " does not exist.");
+    	}
 
-        for (DimensionGrouping d : dimension) {
-            this.addDimensionGrouping(dimensionName, d, elementType);
-        }
+    	if (clearConsolidations){
+    		ArrayList<Element> toDeleteArr = new ArrayList<Element>();
+
+    		for (Element e : dim.getDefaultHierarchy().getElements())
+    			if (e.getChildCount() > 0)
+    				toDeleteArr.add(e);
+
+    		if (toDeleteArr.size() > 0)
+    			dim.getDefaultHierarchy().removeElements(toDeleteArr.toArray(new Element [0]));
+    	}
+
+    	if (recreateDimension){
+    		database.removeDimension(database.getDimensionByName(dimensionName));
+    		database.addDimension(dimensionName);
+    	}	
+
+    	// Takes ridiculously long for big dimensions.
+    	if(clearDimension) {
+    		Element [] elem = database.getDimensionByName(dimensionName).getDefaultHierarchy().getElements();
+    		database.getDimensionByName(dimensionName).getDefaultHierarchy().removeElements(elem);
+    	}
+    	
+    	PaloDimensionCache dimensionCache = new PaloDimensionCache(database, dimensionName, enableCache);
+    	if (preloadCache)
+    		dimensionCache.loadDimensionCache();
+    	
+    	for (DimensionGrouping d : dimension) 
+    		this.addDimensionGrouping(dimensionCache, d, elementType);
+    	
     }
     
     
@@ -441,12 +477,20 @@ public class PaloHelper implements DatabaseFactoryInterface {
 
     
     
-    public final void removeCube(String cubeName) {
+    public final int removeCube(String cubeName) {
         Cube cube = database.getCubeByName(cubeName);
+        if (cube == null)
+        	return 0;
         database.removeCube(cube);
+        return 1;
     }
     
     public final void createCube(String cubeName, String[] dimensionsNames) {
+    	// If cube exist exit
+    	Cube cube = database.getCubeByName(cubeName);
+    	if (cube != null)
+    		return;
+
         Dimension[] dims = new Dimension[dimensionsNames.length];
         for (int i = 0; i < dimensionsNames.length; i++) {
             dims[i] = database.getDimensionByName(dimensionsNames[i]);
@@ -462,46 +506,57 @@ public class PaloHelper implements DatabaseFactoryInterface {
         cube.clear();
     }
 
+    public final void addCells(List < Object[] > cells) throws Exception {
+    	if (cubeCache == null)
+    		throw new Exception("Cube cache hasn't been initialized");
+    	
+    	int dimensionCount = cells.get(0).length - 1;
+    	Element [][] dimensionRows = new Element [cells.size()][dimensionCount];
+    	Object [] dataRows = new Object [cells.size()];
+    	
+    	Cube cube = cubeCache.getCube();
+    	
+    	if (cube.getDimensionCount() != dimensionCount)
+    		throw new Exception("The cube does not have so many dimensions");
+    	
+    	/* For each row, populate the dimension and data rows */
+    	for (int i = 0; i < cells.size(); i++) {
+    		String[] elementNames = new String[dimensionCount];
 
-    public final void addCells(final String cubeName, List < Object[] > cells) throws Exception {
-        if (cells.size() == 0)
-            throw new Exception("Data Array size must be > 0");
-        if (cells.get(0).length < 2)
-            throw new Exception("Data Array must be wider that 1 column");
-        
-        Cube cube = database.getCubeByName(cubeName);
-        if(cube == null)
-            throw new Exception("The cube "+cubeName+" does not exist.");
+    		/* Build dimension Array */
+        	for (int j = 0; j < dimensionCount; j++) {
+    			Element element = null;
+    			Object elementNameObj = cells.get(i)[j];
+    			
+    			if (elementNameObj == null){
+    				String row = "";
+    				for (int k = 0; k < dimensionCount; k++)
+    					row += "[" + (cells.get(i)[k] == null ? "NULL" : cells.get(i)[k].toString()) + "] ";
+    				throw new Exception("Row: ("+row+") could not be added since it contains nulls in dimension " + (j + 1) + " (" + cube.getDimensionAt(j).getName() + ")");
+    			}
+    			
+    			elementNames[j] = elementNameObj.toString();
+    			
+    			element = cubeCache.getElement(j, elementNames[j]);
+    			
+    			if(element == null)
+					throw new Exception("The dimension element "+elementNames[j]+" does not exist in dimension "+cube.getDimensionAt(j).getName());
+    			
+    			dimensionRows[i][j] = element;
+    		}
+        	
+    		/* Build Data Array */
+    		Object dataValue = cells.get(i)[dimensionCount];
+    		
+    		if (!(dataValue instanceof Double) && !(dataValue instanceof String))
+    			throw new Exception("Cell value must be a Double or String to write it to Palo.");
+    		
+    		dataRows[i] = dataValue;
+    	}
 
-        for (int i = 0; i < cells.size(); i++) {
-            String[] dimensions = new String[cells.get(0).length - 1];
-            for (int j = 0; j < cells.get(i).length - 1; j++) {
-                dimensions[j] = cells.get(i)[j].toString();
-                Dimension d = cube.getDimensionAt(j);
-                if(d == null)
-                    throw new Exception("The cube does not have so many dimensions");
-                if(d.getDefaultHierarchy().getElementByName(dimensions[j]) == null)
-                    throw new Exception("The dimension element "+dimensions[j]+" does not exist in dimension "+d.getName());
-            }
-            Object dataValue = cells.get(i)[cells.get(i).length - 1];
-            try {
-                if (dataValue instanceof Double)
-                    cube.setData(dimensions, (Double)dataValue);
-                else {
-                    if (dataValue instanceof String)
-                       cube.setData(dimensions, (String)dataValue);
-                    else
-                       throw new Exception("Cell value must be a Double or String to write it to Palo.");
-                }
-            } catch (Exception ex) {
-                String row = "";
-                for(int k=0;k<dimensions.length;k++)
-                    row+= " "+dimensions[k].toString();
-                row+= " " + dataValue.toString();
-                //throw new Exception("Failed to write data to a cell: "+row+". Check data type, and dimension elements matching.",ex);
-                throw ex;
-            }
-        }
+    	/* Do a bulk commit with all rows passed to this procedure */
+    	cube.setDataArray(dimensionRows, dataRows, Cube.SPLASHMODE_DEFAULT);
+    	
     }
     
     /**
@@ -694,7 +749,8 @@ public class PaloHelper implements DatabaseFactoryInterface {
         return false;
     }
 
-    private void showChildren(final ElementNode node) {
+    @SuppressWarnings("unused")
+	private void showChildren(final ElementNode node) {
         System.out.println("Leido un elemento: " + node.getElement().getName() + " level: " + node.getElement().getLevel() + " hijo de :" + node.getElement().getName());
         Element e = node.getElement();
         org.palo.api.Consolidation[] consolidations = e.getConsolidations();
@@ -762,6 +818,10 @@ public class PaloHelper implements DatabaseFactoryInterface {
                 assembleDimensionRows(rows, currentRow, rowSize, dimension, 
                         children[i], rowIndex + 1, rowMeta, listener);
             }
+            /* After children has been filled, clean out the old child records otherwise shorter 
+             * sibling hierarchies will hold on to these child entries. */
+            for (int i = rowIndex;i < currentRow.length; i++)
+                currentRow[i] = null;
         } else {
             Object[] clonedRow = new Object[currentRow.length];
             for (int i = 0;i < currentRow.length; i++) {
@@ -772,52 +832,70 @@ public class PaloHelper implements DatabaseFactoryInterface {
     }
 
    
-    private void addDimensionGrouping(String dimensionName, DimensionGrouping dimensionGrouping, String elementType) throws KettleException {
+    private void addDimensionGrouping(PaloDimensionCache dimensionCache, DimensionGrouping dimensionGrouping, String elementType) throws KettleException {
+    	// If this is a child dimension at the bottom of the tree
         if (dimensionGrouping.getChildren().size() == 0) {
-            Dimension dim = database.getDimensionByName(dimensionName);
-            try {
-                if(dim.getDefaultHierarchy().getElementByName(dimensionGrouping.getName())==null)
-                    if(elementType.equals("Numeric"))
-                        dim.getDefaultHierarchy().addElement(dimensionGrouping.getName(), Element.ELEMENTTYPE_NUMERIC);
-                    else
-                        dim.getDefaultHierarchy().addElement(dimensionGrouping.getName(), Element.ELEMENTTYPE_STRING);
-            } catch (Exception e) {
+        	try {
+        		int paloElementType = (elementType.equals("Numeric") ? Element.ELEMENTTYPE_NUMERIC : Element.ELEMENTTYPE_STRING);
+        		dimensionCache.createElement(dimensionGrouping.getName(), paloElementType, false);
+            } 
+        	catch (Exception e) {
                 throw new KettleException("Failed to create element: "+ dimensionGrouping.getName(),e);
             }
             
-        } else {
-            for (DimensionGrouping d : dimensionGrouping.getChildren()) {
-                //add this consolidation
-                this.addDimensionGrouping(dimensionName, d, elementType);
+        }
+        // If this is a consolidated item, link the children 
+        else {
+            
+        	// Add all child elements
+        	for (DimensionGrouping c : dimensionGrouping.getChildren()) {
+                this.addDimensionGrouping(dimensionCache, c, elementType);
             }
-            Dimension dim = database.getDimensionByName(dimensionName);
+            
+        	// Do consolidations
+        	Consolidation[] finalConsolidations = null;
+        	
             try {
-                Element parentElement;
-                parentElement = dim.getDefaultHierarchy().getElementByName(dimensionGrouping.getName());
-                if(parentElement == null)
-                    parentElement = dim.getDefaultHierarchy().addElement(dimensionGrouping.getName(), Element.ELEMENTTYPE_NUMERIC);
+            	String parentName = dimensionGrouping.getName();
+                Element parentElement = dimensionCache.createElement(parentName, Element.ELEMENTTYPE_NUMERIC, false);
+
+                Hashtable<String, Consolidation> newConsolidations = new Hashtable<String, Consolidation>();
                 
-                ArrayList<Consolidation> newConsolidations = new ArrayList<Consolidation>();
-                
+                // Read current consolidations
                 for (int i = 0; i < parentElement.getConsolidationCount(); i++) {
-                    newConsolidations.add(parentElement.getConsolidationAt(i));
+                	newConsolidations.put(parentElement.getConsolidationAt(i).getChild().getName(), parentElement.getConsolidationAt(i));
                 }
 
+                // See if new consolidations already exist with the correct weight.  If not, add to the list
                 for (int i = 0; i < dimensionGrouping.getChildren().size(); i++) {
-                    Element childElement = dim.getDefaultHierarchy().getElementByName(dimensionGrouping.getChildren().get(i).getName());
-                    boolean found = false;
-                    for(Consolidation c : newConsolidations) {
-                        if(c.getChild().getName().equals(dimensionGrouping.getChildren().get(i).getName()))
-                            found = true;
+                	String childemename = dimensionGrouping.getChildren().get(i).getName();
+                	if (childemename.equals(parentName))
+                		continue;
+                    	
+                	Element childElement = dimensionCache.getElement(childemename);
+                	
+                	/* If the weight was changed, redo the consolidation with the correct weight */
+                	if (newConsolidations.containsKey(childemename) 
+                			&& newConsolidations.get(childemename).getWeight() != dimensionGrouping.getChildren().get(i).getConsolidationFactor())
+                		newConsolidations.remove(childemename);
+                    
+                    if(!newConsolidations.containsKey(childemename)){
+                    	Consolidation e = dimensionCache.getDimension().getDefaultHierarchy().newConsolidation(childElement, parentElement,  dimensionGrouping.getChildren().get(i).getConsolidationFactor());
+                        newConsolidations.put(childemename, e);
                     }
-                    if(!found)
-                        newConsolidations.add(dim.getDefaultHierarchy().newConsolidation(childElement, parentElement, 1));
                 }
                 
-                Consolidation[] finalConsolidations = new Consolidation[newConsolidations.size()];
-                for(int i = 0; i < finalConsolidations.length; i++) {
-                    finalConsolidations[i] = newConsolidations.get(i);
+                // Copy consolidations into a structure suitable for updateConsolidations
+                finalConsolidations = new Consolidation[newConsolidations.size()];
+                int i = 0;
+                
+                ArrayList<String> array = new ArrayList<String>(newConsolidations.keySet());
+                Collections.sort(array);
+                for(String key : array){
+                	finalConsolidations[i] = newConsolidations.get(key);
+                	i++;
                 }
+                
                 parentElement.updateConsolidations(finalConsolidations);
             } catch(Exception e) {
                 throw new KettleException("failed to create consolidation: "+dimensionGrouping.getName(),e);
@@ -840,10 +918,17 @@ public class PaloHelper implements DatabaseFactoryInterface {
         return true;
     }
 
+    public void loadCubeCache(String cubeName, boolean enableCache, boolean preloadCache) throws Exception{
+    	this.cubeCache = new PaloCubeCache(this, cubeName, enableCache);
 
-
-
-
+    	if (enableCache && preloadCache)
+    		this.cubeCache.loadCubeCache();
+    }
+    
+    public void clearCubeCache(){
+    	this.cubeCache = null;
+    }
+    
     /**
      * Manager for list of listeners.
      * Simply a propagator of signals.

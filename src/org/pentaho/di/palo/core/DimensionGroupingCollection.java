@@ -38,18 +38,18 @@ public class DimensionGroupingCollection extends ArrayList<DimensionGrouping> {
     /**
      * Tests if dimension with given name is in the group.
      */
-	public final boolean contains(final String name) {
+	public final boolean contains(final String name, final double consolidationFactor) {
 		for (final DimensionGrouping c : this) {
-			if (c.getName().equals(name)) 
+			if (c.getName().equals(name) && c.getConsolidationFactor() == consolidationFactor) 
 			    return true;
 		}
 		return false;
 	}
 	
 	
-	public final DimensionGrouping find(final Object name) {
+	public final DimensionGrouping find(final Object name, final double consolidationFactor) {
 	    for (final DimensionGrouping c : this) {
-                if (c.getName().equals(name)) return c;
+                if (c.getName().equals(name) && c.getConsolidationFactor() == consolidationFactor) return c;
             }
             return null;
 	}

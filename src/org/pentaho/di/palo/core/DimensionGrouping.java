@@ -24,24 +24,26 @@ public class DimensionGrouping {
 	private final String id;
 	private final String name;
 	private final int level;
+	private final double consolidationFactor;
 	private final DimensionGroupingCollection children;
 
     /**
      * Creates a group if dimensions
      */
 	
-	public DimensionGrouping(final String name, final String id) {
+	public DimensionGrouping(final String name, final double consolidationFactor, final String id) {
 	    this.name = name;
 	    this.id = id;
 	    this.level = 0;
+	    this.consolidationFactor = consolidationFactor;
 	    this.children = new DimensionGroupingCollection();
 	}
-	public DimensionGrouping(final String name, final String id, 
-            final int level) {
+	public DimensionGrouping(final String name, final String id, final int level, final double consolidationFactor) {
 		this.name = name;
 		this.id = id;
 		this.level = level;
-                this.children = new DimensionGroupingCollection();
+		this.consolidationFactor = consolidationFactor;
+        this.children = new DimensionGroupingCollection();
 	}
 
     public final String getId() { return this.id; }
@@ -49,6 +51,8 @@ public class DimensionGrouping {
     public final String getName() { return this.name; }
     
     public final int getLevel() { return this.level; }
+    
+    public final double getConsolidationFactor() { return this.consolidationFactor; }
 
     //public DimensionGroupingCollection getParents() { return this.parents; }
 
@@ -70,11 +74,11 @@ public class DimensionGrouping {
      * Tests if child with given name is contained into the list of
      * recognized children.
      */
-    public final boolean containsChild(final String name) {
-        return this.children.contains(name);     
+    public final boolean containsChild(final String name, double consolidationFactor) {
+        return this.children.contains(name,consolidationFactor);
     }
-    public final DimensionGrouping findChild(final String name) {
-        return this.children.find(name);
+    public final DimensionGrouping findChild(final String name, double consolidationFactor) {
+        return this.children.find(name, consolidationFactor);
     }
     public final void addChild(final DimensionGrouping child) throws Exception {
         if (this.level != child.level + 1)

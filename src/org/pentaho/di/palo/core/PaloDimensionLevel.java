@@ -21,12 +21,18 @@ public class PaloDimensionLevel {
     private int LevelNumber;
     private String FieldName;
     private String FieldType;
+    private String ConsolidationFieldName;
     
     public PaloDimensionLevel(String levelName, int levelNumber, String fieldName, String fieldType) {
+    	this(levelName,levelNumber,fieldName,fieldType,null);
+    }
+    
+    public PaloDimensionLevel(String levelName, int levelNumber, String fieldName, String fieldType, String ConsolidationFieldName) {
         this.LevelName = levelName;
         this.LevelNumber = levelNumber;
         this.FieldName = fieldName;
         this.FieldType = fieldType;
+        this.ConsolidationFieldName = ConsolidationFieldName;
     }
     public String getLevelName() {
         return this.LevelName;
@@ -39,5 +45,8 @@ public class PaloDimensionLevel {
     }
     public int getLevelNumber() {
         return this.LevelNumber;
+    }
+    public String getConsolidationFieldName(){
+    	return this.ConsolidationFieldName;
     }
 }
