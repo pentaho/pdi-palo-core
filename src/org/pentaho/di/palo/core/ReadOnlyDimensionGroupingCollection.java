@@ -20,6 +20,7 @@ import java.util.Iterator;
  *   
  *   Copyright 2008 Stratebi Business Solutions, S.L.
  *   Copyright 2010 Pentaho
+ *   Copyright 2011 De Bortoli Wines Pty Limited (Australia)
  */
 
 public final class ReadOnlyDimensionGroupingCollection extends DimensionGroupingCollection {
