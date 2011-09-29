@@ -28,25 +28,27 @@ package org.pentaho.di.palo.core;
 
 import java.util.ArrayList;
 
-import org.palo.api.Cube;
-import org.palo.api.Database;
-import org.palo.api.Dimension;
-import org.palo.api.Element;
+import com.jedox.palojlib.interfaces.ICube;
+import com.jedox.palojlib.interfaces.IDatabase;
+import com.jedox.palojlib.interfaces.IDimension;
+import com.jedox.palojlib.interfaces.IElement;
 
 public class PaloCubeCache {
-	private Cube cube;
+	private IDatabase database;
+	private ICube cube;
 	private ArrayList<PaloDimensionCache> cubeCache = new ArrayList<PaloDimensionCache>();
 	private boolean enableCache = false;
 	
 	public PaloCubeCache(PaloHelper helper, final String cubeName, boolean enableCache) throws Exception {
-		this.cube = helper.getDatabase().getCubeByName(cubeName);
-    	this.enableCache = enableCache;
+		this.database = helper.getDatabase();
+		this.cube = database.getCubeByName(cubeName);
+		this.enableCache = enableCache;
     	
     	if(this.cube == null)
             throw new Exception("The cube "+cubeName+" does not exist.");
     }
 	
-	public PaloCubeCache(Database paloDatabase, final String cubeName, boolean enableCache) throws Exception {
+	public PaloCubeCache(IDatabase paloDatabase, final String cubeName, boolean enableCache) throws Exception {
     	this.cube = paloDatabase.getCubeByName(cubeName);
     	this.enableCache = enableCache;
     	
@@ -59,28 +61,27 @@ public class PaloCubeCache {
 			throw new Exception("Cache is not enabled");
 	
 		cubeCache.clear();
-		for (int j = 0; j < cube.getDimensionCount(); j++) {
-            Dimension d = cube.getDimensionAt(j);
-            PaloDimensionCache dimensionCache = new PaloDimensionCache(cube.getDatabase(),d,this.enableCache);
+		for (IDimension d : cube.getDimensions()) {
+			PaloDimensionCache dimensionCache = new PaloDimensionCache(database,d,this.enableCache);
         	cubeCache.add(dimensionCache);
         }
 	}
 	
-	public Element getElement(int dimensionIndex, final String dimensionName){
-		Element element = null;
+	public IElement getElement(int dimensionIndex, final String dimensionName){
+		IElement element = null;
 		
 		/* The dimension cache needs to have the same order/indexing as the cube
 		 * Add blanks to fill any spaces if cache wasn't pre-loaded */
 		if (cubeCache.size() <= dimensionIndex)
-			for(int i = cubeCache.size(); i <= dimensionIndex; i++)
-				cubeCache.add(new PaloDimensionCache(cube.getDatabase(),cube.getDimensionAt(i),this.enableCache));
+			for(IDimension d : cube.getDimensions())
+				cubeCache.add(new PaloDimensionCache(database,d,this.enableCache));
 		
 		element = cubeCache.get(dimensionIndex).getElement(dimensionName);
 		
 		return element;
 	}
 	
-	public Cube getCube(){
+	public ICube getCube(){
 		return cube;
 	}
 	
