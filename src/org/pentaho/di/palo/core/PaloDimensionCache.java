@@ -90,8 +90,7 @@ public class PaloDimensionCache {
 		
 		/* New item */
 		if (elem == null){
-			dimension.addElements(new String[] {elementName}, new IElement.ElementType[] {elementType});
-			elem = dimension.getElementByName(elementName, false);
+			elem = dimension.addBaseElement(elementName, elementType);
 			if (enableCache)
 				elementCache.put(elementName,elem);
 		}
