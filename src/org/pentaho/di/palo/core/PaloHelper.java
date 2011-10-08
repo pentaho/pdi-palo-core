@@ -290,22 +290,20 @@ public class PaloHelper implements DatabaseFactoryInterface {
 		return levels;
 	}
 
-	public final List < Object[] > getDimensionRows(String dimensionName, RowMetaInterface rowMeta, boolean baseElementsOnly, final Listener listener) throws KettleException {
+	public final void getDimensionRows(String dimensionName, RowMetaInterface rowMeta, boolean baseElementsOnly, final Listener listener) throws KettleException {
 		assert database != null;
-		final List < Object[] > rows = new ArrayList < Object[] >();
-
+		
 		final IDimension dimension = database.getDimensionByName(dimensionName);
 		if (dimension == null) 
 			throw new KettleException("Unable to find dimension '" + dimensionName + "' in the Palo database");
 
 		if (baseElementsOnly){
 			for (IElement element : dimension.getElements(false)){
-				if (element.getChildCount() > 0)
+				if (element.getType() == ElementType.ELEMENT_CONSOLIDATED)
 					continue;
 
 				Object[] row = {element.getName()};
-				rows.add(row);
-				this.listeners.oneMoreElement(element);
+				this.listeners.oneMoreElement(row);
 			}
 		}
 		else{
@@ -319,7 +317,7 @@ public class PaloHelper implements DatabaseFactoryInterface {
 
 			// Loop over the elements...
 			//
-			final IElement[] elementsTree = dimension.getElements(false);
+			final IElement[] elementsTree = dimension.getRootElements(false);
 
 			final Object[] row = new Object[rowSize];
 
@@ -327,12 +325,9 @@ public class PaloHelper implements DatabaseFactoryInterface {
 			for (IElement node : elementsTree) {
 				// To debug
 				// this.showChildren(node);
-				this.assembleDimensionRows(rows, row, rowSize, dimension, node, 0, rowMeta, listener);
-				this.listeners.oneMoreElement(node);
+				this.assembleDimensionRows(row, rowSize, dimension, node, 0, rowMeta, listener);
 			}
 		}
-
-		return rows;
 	}
 
 	/**
@@ -396,6 +391,8 @@ public class PaloHelper implements DatabaseFactoryInterface {
 
 				String [] currentRow = tableInputDimensions.get(row);
 				final String group = currentRow[col];
+				if (group == null)
+					continue;
 				final double consolidation = Double.parseDouble(currentRow[col + 1]);
 				final int level = ((columnsCount - col) / 2) - 1;
 
@@ -414,6 +411,8 @@ public class PaloHelper implements DatabaseFactoryInterface {
 
 				if (level > 0) {
 					String childName = tableInputDimensions.get(row)[col + 2];
+					if (childName == null)
+						continue;
 					final double childConsolidation = Double.parseDouble(tableInputDimensions.get(row)[col + 3]);
 					if (!c.containsChild(childName, childConsolidation)) {
 						c.addChild(previousLevel.find(childName, childConsolidation));
@@ -439,11 +438,11 @@ public class PaloHelper implements DatabaseFactoryInterface {
 			ArrayList<IElement> toDeleteArr = new ArrayList<IElement>();
 
 			for (IElement e : dim.getElements(false))
-				if (e.getChildCount() > 0)
+				if (e.getType() == ElementType.ELEMENT_CONSOLIDATED)
 					toDeleteArr.add(e);
 
-					if (toDeleteArr.size() > 0)
-						dim.removeElements(toDeleteArr.toArray(new IElement [toDeleteArr.size()]));
+			if (toDeleteArr.size() > 0)
+				dim.removeElements(toDeleteArr.toArray(new IElement [toDeleteArr.size()]));
 		}
 
 		if (recreateDimension){
@@ -514,7 +513,8 @@ public class PaloHelper implements DatabaseFactoryInterface {
 
 		ICube cube = cubeCache.getCube();
 
-		if (cube.getDimensions().length != dimensionCount)
+		IDimension[] dimensions = cubeCache.getDimensions();
+		if (dimensions.length != dimensionCount)
 			throw new Exception("The cube does not have so many dimensions");
 
 		/* For each row, populate the dimension and data rows */
@@ -522,7 +522,6 @@ public class PaloHelper implements DatabaseFactoryInterface {
 			String[] elementNames = new String[dimensionCount];
 
 			/* Build dimension Array */
-			IDimension[] dimensions = cube.getDimensions();
 			for (int j = 0; j < dimensionCount; j++) {
 				IElement element = null;
 				Object elementNameObj = cells.get(i)[j];
@@ -604,103 +603,6 @@ public class PaloHelper implements DatabaseFactoryInterface {
 		return rows;
 	}
 
-
-	//    /**
-	//     * Gets all elements from a Palo cube and notifies given listener to
-	//     * process each element.
-	//     */
-	//    public final void getCells(final String cubeName, final RowMetaInterface rowMeta, final Listener listener) throws KettleException {
-	//        ICube cube = database.getCubeByName(cubeName);
-	//        IDimension[] cubeDimensions = cube.getDimensions();
-	//        IElement[][] cubeDimensionElements = new IElement[cubeDimensions.length][];
-	//        int[] currentDimensionIndexes = new int[cubeDimensions.length];
-	//        
-	//        int totalElements = 1;
-	//        // we get all the elements of all the the dimensions 
-	//        // related to the given cube
-	//        for (int i = 0; i < cubeDimensions.length; i++) {
-	//            IElement[] elements = cubeDimensions[i].getElements(false);
-	//            // int leaves = 0;
-	//            List < IElement > list = new ArrayList < IElement > ();
-	//            for (int j = 0; j < elements.length; j++) {
-	//                //if (elements[j].getType() != IElement.ElementType.ELEMENT_CONSOLIDATED){
-	//                    list.add(elements[j]);
-	//                //}
-	//            }
-	//            cubeDimensionElements[i] = list.toArray(new IElement[list.size()]);
-	//            
-	//            currentDimensionIndexes[i] = 0;
-	//            totalElements *= cubeDimensionElements[i].length;
-	//        }
-	//        
-	//        this.listeners.prepareElements(totalElements);
-	//        
-	//        int batchSize = 100;
-	//        
-	//        ExportType exportType = ExportType.ONLY_NUMERIC;
-	//        if(rowMeta.getValueMeta(cubeDimensions.length).isString())
-	//        	exportType = ExportType.ONLY_STRING;
-	//        
-	//        boolean use_rules = false;
-	//        boolean base_only = true;
-	//        boolean skip_empty = true;
-	//        
-	//        CellsExporter exporter = cube.getCellsExporter(cubeDimensionElements, exportType, batchSize, use_rules, base_only, skip_empty);
-	//        
-	//        while (exporter.hasNext()){
-	//
-	//        	ICell valueCell = exporter.next();
-	//        	
-	//        	Object[] row = new Object[cubeDimensions.length + 1];
-	//            for (int i = 0; i < cubeDimensions.length; i++) {
-	//                //para cada dimension cojo el valor actual que queremos sacar
-	//                String elementValue = valueCell.getPathNames()[i];
-	//                if(rowMeta.getValueMeta(i).isString()) {
-	//                    row[i] = elementValue;
-	//                } else {
-	//                    if(rowMeta.getValueMeta(i).isNumber()) {
-	//                        row[i] = Double.parseDouble(elementValue);
-	//                    } else 
-	//                        throw new KettleException("Only String and Number Types are allowed for dimension values");
-	//                }
-	//            }
-	//        	
-	//            Object data = valueCell.getValue();
-	//            if(rowMeta.getValueMeta(cubeDimensions.length).isString()) {
-	//        		if (data instanceof String && data.toString().equals("")) {
-	//        			//warning: no data
-	//        		} else {
-	//        			row[cubeDimensions.length] = data.toString();
-	//        			this.listeners.oneMoreElement(row);
-	//        			listener.oneMoreElement(row);
-	//        		} 
-	//        	} else {
-	//        		if(rowMeta.getValueMeta(cubeDimensions.length).isNumber()) {
-	//        			if (data instanceof Double) {
-	//        				row[cubeDimensions.length] = data;
-	//        				this.listeners.oneMoreElement(row);
-	//        				listener.oneMoreElement(row);
-	//        			} else {
-	//        				if(data instanceof String && data.toString().equals("")) {
-	//        					//no value
-	//        				} else 
-	//        					throw new KettleException("Measure field is defined as Number but data from palo is: "+ data.getClass().toString());
-	//        			}
-	//        		} else 
-	//        			throw new KettleException("Only String and Number Types are accepted for Measure Field");
-	//        	}
-	//
-	//        	if(listener.getStop()) {
-	//        		while (true) {
-	//        			if(!listener.getStop() || listener.getCancel()) {
-	//        				break;
-	//        			}
-	//        		}
-	//        	}
-	//        	if(listener.getCancel())
-	//        		break;
-	//        }
-	//    }
 
 	/**
 	 * Gets all elements from a Palo cube and notifies given listener to
@@ -896,7 +798,7 @@ private void assembleDimensionRowMeta(Dimension dimension,
 }
 	 */
 
-	private void assembleDimensionRows(final List < Object[] > rows, 
+	private void assembleDimensionRows(
 			final Object[] currentRow, final int rowSize, 
 			final IDimension dimension,  
 			final IElement node, final int rowIndex,
@@ -925,12 +827,11 @@ private void assembleDimensionRowMeta(Dimension dimension,
 			throw new KettleException("Invalid Dimension Element Palo Type: "+node.getType());
 		}
 
-
 		// More children?
-		IElement[] children = node.getChildren();
-		if (children != null && children.length != 0) {
+		if (node.getType() == ElementType.ELEMENT_CONSOLIDATED) {
+			IElement[] children = node.getChildren();
 			for (int i = 0; i < children.length; i++) {
-				assembleDimensionRows(rows, currentRow, rowSize, dimension, 
+				assembleDimensionRows(currentRow, rowSize, dimension, 
 						children[i], rowIndex + 1, rowMeta, listener);
 			}
 			/* After children has been filled, clean out the old child records otherwise shorter 
@@ -942,7 +843,7 @@ private void assembleDimensionRowMeta(Dimension dimension,
 			for (int i = 0;i < currentRow.length; i++) {
 				clonedRow[i] = currentRow[i];
 			}
-			rows.add(clonedRow);
+			listener.oneMoreElement(clonedRow);
 		}
 	}
 
@@ -995,7 +896,7 @@ private void assembleDimensionRowMeta(Dimension dimension,
 						newConsolidations.remove(childemename);
 
 					if(!newConsolidations.containsKey(childemename)){
-						Consolidation e = dimensionCache.getDimension().newConsolidation(childElement, parentElement,  dimensionGrouping.getChildren().get(i).getConsolidationFactor());
+						Consolidation e = dimensionCache.getDimension().newConsolidation(parentElement, childElement, dimensionGrouping.getChildren().get(i).getConsolidationFactor());
 						newConsolidations.put(childemename, e);
 					}
 				}
