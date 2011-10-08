@@ -34,26 +34,21 @@ import com.jedox.palojlib.interfaces.IDimension;
 import com.jedox.palojlib.interfaces.IElement;
 
 public class PaloCubeCache {
-	private IDatabase database;
-	private ICube cube;
-	private ArrayList<PaloDimensionCache> cubeCache = new ArrayList<PaloDimensionCache>();
-	private boolean enableCache = false;
+	private final IDatabase database;
+	private final IDimension [] dimensions;
+	private final ICube cube;
+	private final ArrayList<PaloDimensionCache> cubeCache = new ArrayList<PaloDimensionCache>();
+	private final boolean enableCache;
 	
 	public PaloCubeCache(PaloHelper helper, final String cubeName, boolean enableCache) throws Exception {
 		this.database = helper.getDatabase();
 		this.cube = database.getCubeByName(cubeName);
 		this.enableCache = enableCache;
-    	
-    	if(this.cube == null)
+		
+		if(this.cube == null)
             throw new Exception("The cube "+cubeName+" does not exist.");
-    }
-	
-	public PaloCubeCache(IDatabase paloDatabase, final String cubeName, boolean enableCache) throws Exception {
-    	this.cube = paloDatabase.getCubeByName(cubeName);
-    	this.enableCache = enableCache;
-    	
-    	if(this.cube == null)
-            throw new Exception("The cube "+cubeName+" does not exist.");
+		
+		this.dimensions = cube.getDimensions();
     }
 	
 	public void loadCubeCache() throws Exception {
@@ -63,6 +58,7 @@ public class PaloCubeCache {
 		cubeCache.clear();
 		for (IDimension d : cube.getDimensions()) {
 			PaloDimensionCache dimensionCache = new PaloDimensionCache(database,d,this.enableCache);
+			dimensionCache.loadDimensionCache();
         	cubeCache.add(dimensionCache);
         }
 	}
@@ -87,5 +83,9 @@ public class PaloCubeCache {
 	
 	public String getCubeName(){
 		return cube.getName();
+	}
+
+	public IDimension [] getDimensions() {
+		return dimensions;
 	}
 }
