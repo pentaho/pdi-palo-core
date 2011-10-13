@@ -27,24 +27,24 @@ package org.pentaho.di.palo.core;
 
 import java.util.Hashtable;
 
-import org.palo.api.Database;
-import org.palo.api.Dimension;
-import org.palo.api.Element;
+import com.jedox.palojlib.interfaces.IDatabase;
+import com.jedox.palojlib.interfaces.IDimension;
+import com.jedox.palojlib.interfaces.IElement;
 
 public class PaloDimensionCache {
-	private Hashtable<String, Element> elementCache = new Hashtable<String, Element>();
+	private Hashtable<String, IElement> elementCache = new Hashtable<String, IElement>();
 	private String dimensionName = "";
-	private Dimension dimension;
+	private IDimension dimension;
 	private boolean enableCache = false;
 	private boolean allLoaded = false;
 	
-	public PaloDimensionCache(Database paloDatabase, Dimension dimension, boolean enableCache){
+	public PaloDimensionCache(IDatabase paloDatabase, IDimension dimension, boolean enableCache){
 		this.dimension = dimension;
 		this.dimensionName = this.dimension.getName();
 		this.enableCache = enableCache;
 	}
 	
-	public PaloDimensionCache(Database paloDatabase, String dimensionName, boolean enableCache) throws Exception{
+	public PaloDimensionCache(IDatabase paloDatabase, String dimensionName, boolean enableCache) throws Exception{
 		this.dimensionName = dimensionName;
 		this.enableCache = enableCache;
 		
@@ -58,24 +58,24 @@ public class PaloDimensionCache {
 		if (!enableCache)
 			throw new Exception("Cache is not enabled for dimension " + dimensionName);
 
-		Element [] elements = dimension.getDefaultHierarchy().getElements();
+		IElement [] elements = dimension.getElements(false);
 
-		for (Element elem : elements){
+		for (IElement elem : elements){
 			elementCache.put(elem.getName(), elem);
 		}
 		
 		allLoaded = true;
 	}
 	
-	public Element getElement(final String elementName){
-		Element element = null;
+	public IElement getElement(final String elementName){
+		IElement element = null;
 		
 		if (enableCache)
 			element = elementCache.get(elementName);
 		
 		if (element == null && allLoaded == false)
 		{
-			element = dimension.getDefaultHierarchy().getElementByName(elementName);
+			element = dimension.getElementByName(elementName, false);
 			if (enableCache && element != null)
 				elementCache.put(elementName,element);
 		}
@@ -83,14 +83,14 @@ public class PaloDimensionCache {
 		return element;
 	}
 	
-	public Element createElement(String elementName, int elementType, boolean errorIfExists) throws Exception{
-		Element elem = getElement(elementName);
+	public IElement createElement(String elementName, IElement.ElementType elementType, boolean errorIfExists) throws Exception{
+		IElement elem = getElement(elementName);
 		if (errorIfExists == true && elem != null)
 			throw new Exception("Element with name " + elementName + " already exists");
 		
 		/* New item */
 		if (elem == null){
-			elem = dimension.getDefaultHierarchy().addElement(elementName, elementType);
+			elem = dimension.addBaseElement(elementName, elementType);
 			if (enableCache)
 				elementCache.put(elementName,elem);
 		}
@@ -101,7 +101,7 @@ public class PaloDimensionCache {
 		return dimensionName;
 	}
 	
-	public Dimension getDimension(){
+	public IDimension getDimension(){
 		return dimension;
 	}
 }

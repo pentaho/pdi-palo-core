@@ -21,13 +21,18 @@ package org.pentaho.di.palo.core;
  */
 
 import java.util.ArrayList;
+import java.util.HashMap;
 
 /**
  * Data typing of a list of groups of dimensions
  */
 public class DimensionGroupingCollection extends ArrayList<DimensionGrouping> {
 	
-    /**
+	// Pieter vd Merwe - Can't make the base class extend HashMap since we need the order of the ArrayList
+	private HashMap<String, DimensionGrouping> fastLookup = new HashMap<String, DimensionGrouping>();
+	private int level = -1;
+    
+	/**
 	 * 
 	 */
 	private static final long	serialVersionUID	= 8285613250561692075L;
@@ -38,34 +43,37 @@ public class DimensionGroupingCollection extends ArrayList<DimensionGrouping> {
     public DimensionGroupingCollection() {
         super();
     }
-
-    /**
-     * Tests if dimension with given name is in the group.
-     */
+    
+    private String buildKey(final String name, final double consolidationFactor){
+		return name.toString() + "|" + Double.toString(consolidationFactor);
+	}
+	
+	/**
+	 * Tests if dimension with given name is in the group.
+	 */
 	public final boolean contains(final String name, final double consolidationFactor) {
-		for (final DimensionGrouping c : this) {
-			if (c.getName().equals(name) && c.getConsolidationFactor() == consolidationFactor) 
-			    return true;
-		}
-		return false;
+		return fastLookup.containsKey(buildKey(name,consolidationFactor));
 	}
 	
 	
 	public final DimensionGrouping find(final Object name, final double consolidationFactor) {
-	    for (final DimensionGrouping c : this) {
-                if (c.getName().equals(name) && c.getConsolidationFactor() == consolidationFactor) return c;
-            }
-            return null;
+		String key = buildKey(name.toString(),consolidationFactor);
+		if (fastLookup.containsKey(key))
+			return fastLookup.get(key);
+		else return null;
 	}
-	
+
 	public boolean add(DimensionGrouping dimensionGrouping) {
-	    for (final DimensionGrouping c : this) {
-                if (c.getLevel() != (dimensionGrouping.getLevel())) return false;
-            }
+		String key = buildKey(dimensionGrouping.getName(),dimensionGrouping.getConsolidationFactor());
+		
+		if (level == -1)
+			level = dimensionGrouping.getLevel();
+		else if (level != (dimensionGrouping.getLevel())) return false;
+	    
 	    this.add(this.size(), dimensionGrouping);
-            return true;
+	    fastLookup.put(key, dimensionGrouping);
+
+	    return true;
 	    
 	}
 }
-
-
