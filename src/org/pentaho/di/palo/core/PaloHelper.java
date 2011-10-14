@@ -63,6 +63,11 @@ public class PaloHelper implements DatabaseFactoryInterface {
 	private IConnection connection;
 	final private Level paloAPILogLevel;
 	
+	// Needed by the Database dialog
+	public PaloHelper(){
+		paloAPILogLevel = Level.OFF;
+	}
+	
 	public PaloHelper(final DatabaseMeta databaseMeta, final LogLevel logLevel) {
 		this.databaseMeta = databaseMeta;
 		
