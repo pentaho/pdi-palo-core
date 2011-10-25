@@ -106,6 +106,8 @@ public class PaloDimensionCache {
 		// Get a unique list
 		elementNames = new ArrayList<String>(new HashSet<String>(elementNames));
 		
+		ArrayList<String> uniqueElementNames = new ArrayList<String>();
+		
 		// Only non existing elements can be added
 		for (String elementName : elementNames){
 			if (elementsAdded.contains(elementName)
@@ -113,19 +115,19 @@ public class PaloDimensionCache {
 				if (errorIfExists){
 					throw new Exception("Element with name " + elementName + " already exists");
 				}
-				else elementNames.remove(elementName);
 			}
+			else uniqueElementNames.add(elementName);
 		}
 		
 		// Setup the types for the elements
-		ElementType[] elementTypes = new ElementType[elementNames.size()];
-		for (int i = 0; i < elementNames.size(); i++){
+		ElementType[] elementTypes = new ElementType[uniqueElementNames.size()];
+		for (int i = 0; i < uniqueElementNames.size(); i++){
 			elementTypes[i] = elementType;
 		}
 
-		dimension.addElements(elementNames.toArray(new String[0]), elementTypes);
+		dimension.addElements(uniqueElementNames.toArray(new String[0]), elementTypes);
 		
-		for (String elementName : elementNames){
+		for (String elementName : uniqueElementNames){
 			elementsAdded.add(elementName);
 		}
 	}
