@@ -22,6 +22,7 @@ package org.pentaho.di.palo.core;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.List;
 
@@ -476,12 +477,33 @@ public class PaloHelper implements DatabaseFactoryInterface {
 			database.getDimensionByName(dimensionName).removeElements(elem);
 		}
 
+		IElement.ElementType paloElementType = (elementType.equals("Numeric") ? IElement.ElementType.ELEMENT_NUMERIC : IElement.ElementType.ELEMENT_STRING);
+		
+		ArrayList<String> elements = new ArrayList<String>();
+		for (DimensionGrouping d : dimension) 
+			elements.addAll(this.getDimensionElements(d));
+		
+		// Get a unique list
+		elements = new ArrayList<String>(new HashSet<String>(elements));
+		
+		ElementType[] types = new ElementType[elements.size()];
+		for (int i = 0; i < elements.size(); i++){
+			types[i] = paloElementType;
+		}
+
+		database.getDimensionByName(dimensionName).addElements(elements.toArray(new String[0]), types);
+		
 		PaloDimensionCache dimensionCache = new PaloDimensionCache(database, dimensionName, enableCache);
 		if (preloadCache)
 			dimensionCache.loadDimensionCache();
-
-		for (DimensionGrouping d : dimension) 
-			this.addDimensionGrouping(dimensionCache, d, elementType);
+		
+		for (DimensionGrouping d : dimension){
+			ArrayList<Consolidation[]> consolidations = getConsolidations(dimensionCache, d, elementType);
+			for (Consolidation[] consol : consolidations){
+				dimensionCache.getDimension().updateConsolidations(consol);
+			}
+			//this.addDimensionGrouping(dimensionCache, d, elementType);
+		}
 
 	}
 
@@ -786,25 +808,29 @@ public class PaloHelper implements DatabaseFactoryInterface {
 		}
 	}
 
+	private ArrayList<String> getDimensionElements(DimensionGrouping dimensionGrouping) throws KettleException {
+		
+		ArrayList<String> elements = new ArrayList<String>();
 
-	private void addDimensionGrouping(PaloDimensionCache dimensionCache, DimensionGrouping dimensionGrouping, String elementType) throws KettleException {
-		// If this is a child dimension at the bottom of the tree
-		if (dimensionGrouping.getChildren().size() == 0) {
-			try {
-				IElement.ElementType paloElementType = (elementType.equals("Numeric") ? IElement.ElementType.ELEMENT_NUMERIC : IElement.ElementType.ELEMENT_STRING);
-				dimensionCache.createElement(dimensionGrouping.getName(), paloElementType, false);
-			} 
-			catch (Exception e) {
-				throw new KettleException("Failed to create element: "+ dimensionGrouping.getName(),e);
-			}
-
+		elements.add(dimensionGrouping.getName());
+		
+		// For consolidated elements, add the children
+		for (DimensionGrouping c : dimensionGrouping.getChildren()) {
+			elements.addAll(this.getDimensionElements(c));
 		}
+		
+		return elements;
+	}
+	
+	private ArrayList<Consolidation[]> getConsolidations(PaloDimensionCache dimensionCache, DimensionGrouping dimensionGrouping, String elementType) throws KettleException {
+		
+		ArrayList<Consolidation[]> consolidations = new ArrayList<Consolidation[]>();
 		// If this is a consolidated item, link the children 
-		else {
-
-			// Add all child elements
+		if (dimensionGrouping.getChildren().size() > 0) {
+		
+			// Add all child groupings
 			for (DimensionGrouping c : dimensionGrouping.getChildren()) {
-				this.addDimensionGrouping(dimensionCache, c, elementType);
+				consolidations.addAll(this.getConsolidations(dimensionCache, c, elementType));
 			}
 
 			// Do consolidations
@@ -813,16 +839,14 @@ public class PaloHelper implements DatabaseFactoryInterface {
 			try {
 				String parentName = dimensionGrouping.getName();
 				IElement parentElement = dimensionCache.createElement(parentName, ElementType.ELEMENT_NUMERIC, false);
-
+				
 				Hashtable<String, Consolidation> newConsolidations = new Hashtable<String, Consolidation>();
 
 				// Read current consolidations if the item existed before.  If it was just created, it's element type will be ElementType.ELEMENT_NUMERIC
-				if (parentElement.getType() == ElementType.ELEMENT_CONSOLIDATED){
-					for (IElement child : parentElement.getChildren()) {
-						newConsolidations.put(child.getName(),  dimensionCache.getDimension().newConsolidation(parentElement, child, child.getWeight(parentElement)));
-					}
+				for (IElement child : parentElement.getChildren()) {
+					newConsolidations.put(child.getName(),  dimensionCache.getDimension().newConsolidation(parentElement, child, child.getWeight(parentElement)));
 				}
-
+			
 				// See if new consolidations already exist with the correct weight.  If not, add to the list
 				for (int i = 0; i < dimensionGrouping.getChildren().size(); i++) {
 					String childemename = dimensionGrouping.getChildren().get(i).getName();
@@ -853,12 +877,74 @@ public class PaloHelper implements DatabaseFactoryInterface {
 					i++;
 				}
 
-				dimensionCache.getDimension().updateConsolidations(finalConsolidations);
+				consolidations.add(finalConsolidations);
 			} catch(Exception e) {
 				throw new KettleException("failed to create consolidation: "+dimensionGrouping.getName(),e);
 			}
 		}
+		return consolidations;
 	}
+
+//	private void addDimensionGrouping(PaloDimensionCache dimensionCache, DimensionGrouping dimensionGrouping, String elementType) throws KettleException {
+//		
+//		// If this is a consolidated item, link the children 
+//		if (dimensionGrouping.getChildren().size() > 0) {
+//		
+//			// Add all child groupings
+//			for (DimensionGrouping c : dimensionGrouping.getChildren()) {
+//				this.addDimensionGrouping(dimensionCache, c, elementType);
+//			}
+//
+//			// Do consolidations
+//			Consolidation[] finalConsolidations = null;
+//
+//			try {
+//				String parentName = dimensionGrouping.getName();
+//				IElement parentElement = dimensionCache.createElement(parentName, ElementType.ELEMENT_NUMERIC, false);
+//
+//				Hashtable<String, Consolidation> newConsolidations = new Hashtable<String, Consolidation>();
+//
+//				// Read current consolidations if the item existed before.  If it was just created, it's element type will be ElementType.ELEMENT_NUMERIC
+//				for (IElement child : parentElement.getChildren()) {
+//					newConsolidations.put(child.getName(),  dimensionCache.getDimension().newConsolidation(parentElement, child, child.getWeight(parentElement)));
+//				}
+//			
+//				// See if new consolidations already exist with the correct weight.  If not, add to the list
+//				for (int i = 0; i < dimensionGrouping.getChildren().size(); i++) {
+//					String childemename = dimensionGrouping.getChildren().get(i).getName();
+//					if (childemename.equals(parentName))
+//						continue;
+//
+//					IElement childElement = dimensionCache.getElement(childemename);
+//
+//					/* If the weight was changed, redo the consolidation with the correct weight */
+//					if (newConsolidations.containsKey(childemename) 
+//							&& newConsolidations.get(childemename).getWeight() != dimensionGrouping.getChildren().get(i).getConsolidationFactor())
+//						newConsolidations.remove(childemename);
+//
+//					if(!newConsolidations.containsKey(childemename)){
+//						Consolidation e = dimensionCache.getDimension().newConsolidation(parentElement, childElement, dimensionGrouping.getChildren().get(i).getConsolidationFactor());
+//						newConsolidations.put(childemename, e);
+//					}
+//				}
+//
+//				// Copy consolidations into a structure suitable for updateConsolidations
+//				finalConsolidations = new Consolidation[newConsolidations.size()];
+//				int i = 0;
+//
+//				ArrayList<String> array = new ArrayList<String>(newConsolidations.keySet());
+//				Collections.sort(array);
+//				for(String key : array){
+//					finalConsolidations[i] = newConsolidations.get(key);
+//					i++;
+//				}
+//
+//				dimensionCache.getDimension().updateConsolidations(finalConsolidations);
+//			} catch(Exception e) {
+//				throw new KettleException("failed to create consolidation: "+dimensionGrouping.getName(),e);
+//			}
+//		}
+//	}
 
 	public void loadCubeCache(String cubeName, boolean enableCache, boolean preloadCache) throws Exception{
 		this.cubeCache = new PaloCubeCache(this, cubeName, enableCache);
