@@ -25,11 +25,14 @@
  */
 package org.pentaho.di.palo.core;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Hashtable;
 
 import com.jedox.palojlib.interfaces.IDatabase;
 import com.jedox.palojlib.interfaces.IDimension;
 import com.jedox.palojlib.interfaces.IElement;
+import com.jedox.palojlib.interfaces.IElement.ElementType;
 
 public class PaloDimensionCache {
 	private Hashtable<String, IElement> elementCache = new Hashtable<String, IElement>();
@@ -37,6 +40,7 @@ public class PaloDimensionCache {
 	private IDimension dimension;
 	private boolean enableCache = false;
 	private boolean allLoaded = false;
+	private ArrayList<String> elementsAdded = new ArrayList<String>();
 	
 	public PaloDimensionCache(IDatabase paloDatabase, IDimension dimension, boolean enableCache){
 		this.dimension = dimension;
@@ -65,6 +69,7 @@ public class PaloDimensionCache {
 		}
 		
 		allLoaded = true;
+		elementsAdded.clear();
 	}
 	
 	public IElement getElement(final String elementName){
@@ -95,6 +100,34 @@ public class PaloDimensionCache {
 				elementCache.put(elementName,elem);
 		}
 		return elem;
+	}
+	
+	public void createElements(ArrayList<String> elementNames, IElement.ElementType elementType, boolean errorIfExists) throws Exception{
+		// Get a unique list
+		elementNames = new ArrayList<String>(new HashSet<String>(elementNames));
+		
+		// Only non existing elements can be added
+		for (String elementName : elementNames){
+			if (elementsAdded.contains(elementName)
+				|| this.getElement(elementName) != null){
+				if (errorIfExists){
+					throw new Exception("Element with name " + elementName + " already exists");
+				}
+				else elementNames.remove(elementName);
+			}
+		}
+		
+		// Setup the types for the elements
+		ElementType[] elementTypes = new ElementType[elementNames.size()];
+		for (int i = 0; i < elementNames.size(); i++){
+			elementTypes[i] = elementType;
+		}
+
+		dimension.addElements(elementNames.toArray(new String[0]), elementTypes);
+		
+		for (String elementName : elementNames){
+			elementsAdded.add(elementName);
+		}
 	}
 	
 	public String getDimensionName(){
