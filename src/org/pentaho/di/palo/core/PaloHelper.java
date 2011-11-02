@@ -648,13 +648,11 @@ public class PaloHelper implements DatabaseFactoryInterface {
 				} else {
 					row[cubeDimensions.length] = data.toString();
 					listener.oneMoreElement(row);
-					listener.oneMoreElement(row);
 				} 
 			} else {
 				if(rowMeta.getValueMeta(cubeDimensions.length).isNumber()) {
 					if (data instanceof Double) {
 						row[cubeDimensions.length] = data;
-						listener.oneMoreElement(row);
 						listener.oneMoreElement(row);
 					} else {
 						if(data instanceof String && data.toString().equals("")) {
