@@ -21,7 +21,6 @@ package org.pentaho.di.palo.core;
  */
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Hashtable;
 import java.util.List;
 
@@ -63,6 +62,8 @@ public class PaloHelper implements DatabaseFactoryInterface {
 	private IDatabase database;
 	private IConnection connection;
 	final private Level paloAPILogLevel;
+	final private PaloOptionCollection updateOptions = PaloHelper.getUpdateModeOptions();
+	final private PaloOptionCollection splashOptions = PaloHelper.getSplasModeOptions();
 	
 	// Needed by the Database dialog
 	public PaloHelper(){
@@ -530,9 +531,12 @@ public class PaloHelper implements DatabaseFactoryInterface {
 		cube.clear();
 	}
 
-	public final void addCells(List < Object[] > cells) throws Exception {
+	public final void addCells(List < Object[] > cells, String addCode, String splashCode) throws Exception {
 		if (cubeCache == null)
 			throw new Exception("Cube cache hasn't been initialized");
+		
+		boolean addValues = (Boolean) updateOptions.getValue(addCode);
+		SplashMode splashMode = (SplashMode) splashOptions.getValue(splashCode);
 
 		int dimensionCount = cells.get(0).length - 1;
 		IElement [][] dimensionRows = new IElement [cells.size()][dimensionCount];
@@ -580,7 +584,7 @@ public class PaloHelper implements DatabaseFactoryInterface {
 		}
 
 		/* Do a bulk commit with all rows passed to this procedure */
-		cube.loadCells(dimensionRows,dataRows,dataRows.length,false, SplashMode.SPLASH_DEFAULT);
+		cube.loadCells(dimensionRows,dataRows,dataRows.length, addValues, splashMode);
 
 	}
 
@@ -809,11 +813,17 @@ public class PaloHelper implements DatabaseFactoryInterface {
 				String parentName = dimensionGrouping.getName();
 				IElement parentElement = dimensionCache.createElement(parentName, ElementType.ELEMENT_NUMERIC, false);
 				
+				// The HashTable is used for speed improvements, but it doesn't keep the original sorting.  The original sorting
+				// is important for dimensions that include month names etc.  We need to run it with an ArrayList in parallel
+				// to keep the sorting, but use the HashTable to get quick lookups for increased speed.
 				Hashtable<String, Consolidation> newConsolidations = new Hashtable<String, Consolidation>();
-
-				// Read current consolidations if the item existed before.  If it was just created, it's element type will be ElementType.ELEMENT_NUMERIC
+				ArrayList<Consolidation> sortedNewConsolidations = new ArrayList<Consolidation>();
+				
+				// Read current consolidations if the item existed before.
 				for (IElement child : parentElement.getChildren()) {
-					newConsolidations.put(child.getName(),  dimensionCache.getDimension().newConsolidation(parentElement, child, child.getWeight(parentElement)));
+					Consolidation e = dimensionCache.getDimension().newConsolidation(parentElement, child, child.getWeight(parentElement));
+					newConsolidations.put(child.getName(), e);
+					sortedNewConsolidations.add(e);
 				}
 			
 				// See if new consolidations already exist with the correct weight.  If not, add to the list
@@ -827,25 +837,28 @@ public class PaloHelper implements DatabaseFactoryInterface {
 					/* If the weight was changed, redo the consolidation with the correct weight */
 					if (newConsolidations.containsKey(childemename) 
 							&& newConsolidations.get(childemename).getWeight() != dimensionGrouping.getChildren().get(i).getConsolidationFactor())
+					{
+						Consolidation oldConsol = newConsolidations.get(childemename);
+						int index = sortedNewConsolidations.indexOf(oldConsol);
+
+						Consolidation updatedConsol = dimensionCache.getDimension().newConsolidation(parentElement, childElement, dimensionGrouping.getChildren().get(i).getConsolidationFactor());
 						newConsolidations.remove(childemename);
+						newConsolidations.put(childemename, updatedConsol);
+						
+						// Replace the old consolidation with updated one, keeping the order
+						sortedNewConsolidations.remove(index);
+						sortedNewConsolidations.add(index,updatedConsol);
+					}
 
 					if(!newConsolidations.containsKey(childemename)){
 						Consolidation e = dimensionCache.getDimension().newConsolidation(parentElement, childElement, dimensionGrouping.getChildren().get(i).getConsolidationFactor());
 						newConsolidations.put(childemename, e);
+						sortedNewConsolidations.add(e);
 					}
 				}
 
 				// Copy consolidations into a structure suitable for updateConsolidations
-				finalConsolidations = new Consolidation[newConsolidations.size()];
-				int i = 0;
-
-				ArrayList<String> array = new ArrayList<String>(newConsolidations.keySet());
-				Collections.sort(array);
-				for(String key : array){
-					finalConsolidations[i] = newConsolidations.get(key);
-					i++;
-				}
-
+				finalConsolidations = sortedNewConsolidations.toArray(new Consolidation[0]);
 				consolidations.add(finalConsolidations);
 			} catch(Exception e) {
 				throw new KettleException("failed to create consolidation: "+dimensionGrouping.getName(),e);
@@ -874,6 +887,22 @@ public class PaloHelper implements DatabaseFactoryInterface {
 
 	public void clearDimensionCache(){
 		this.dimensionCache = null;
+	}
+	
+	public static PaloOptionCollection getUpdateModeOptions(){
+		PaloOptionCollection collection = new PaloOptionCollection();
+		collection.add(new PaloOption("SET", false));
+		collection.add(new PaloOption("ADD", true));
+		return collection;
+	}
+	
+	public static PaloOptionCollection getSplasModeOptions(){
+		PaloOptionCollection collection = new PaloOptionCollection();
+		collection.add(new PaloOption("DISABLED", SplashMode.SPLASH_NOSPLASHING));
+		collection.add(new PaloOption("DEFAULT", SplashMode.SPLASH_DEFAULT));
+		collection.add(new PaloOption("ADD", SplashMode.SPLASH_ADD));
+		collection.add(new PaloOption("SET", SplashMode.SPLASH_SET));
+		return collection;
 	}
 }
 

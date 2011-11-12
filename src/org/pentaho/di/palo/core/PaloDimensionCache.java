@@ -26,7 +26,6 @@
 package org.pentaho.di.palo.core;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.Hashtable;
 
 import com.jedox.palojlib.interfaces.IDatabase;
@@ -103,31 +102,40 @@ public class PaloDimensionCache {
 	}
 	
 	public void createElements(ArrayList<String> elementNames, IElement.ElementType elementType, boolean errorIfExists) throws Exception{
-		// Get a unique list
-		elementNames = new ArrayList<String>(new HashSet<String>(elementNames));
+		
+		// Can't do this since we need the list in the original sort order.  Otherwise month names are ordered incorrectly etc.
+		// elementNames = new ArrayList<String>(new HashSet<String>(elementNames)); // Get a unique list
 		
 		ArrayList<String> uniqueElementNames = new ArrayList<String>();
+		ArrayList<String> toAddElementNames = new ArrayList<String>();
 		
-		// Only non existing elements can be added
+		// Get a unique list, maintaining the original sort order
 		for (String elementName : elementNames){
+			if (!uniqueElementNames.contains(elementName)){
+				uniqueElementNames.add(elementName);
+			}
+		}
+
+		// Only non existing elements can be added
+		for (String elementName : uniqueElementNames){
 			if (elementsAdded.contains(elementName)
 				|| this.getElement(elementName) != null){
 				if (errorIfExists){
 					throw new Exception("Element with name " + elementName + " already exists");
 				}
 			}
-			else uniqueElementNames.add(elementName);
+			else toAddElementNames.add(elementName);
 		}
 		
 		// Setup the types for the elements
-		ElementType[] elementTypes = new ElementType[uniqueElementNames.size()];
-		for (int i = 0; i < uniqueElementNames.size(); i++){
+		ElementType[] elementTypes = new ElementType[toAddElementNames.size()];
+		for (int i = 0; i < toAddElementNames.size(); i++){
 			elementTypes[i] = elementType;
 		}
 
-		dimension.addElements(uniqueElementNames.toArray(new String[0]), elementTypes);
+		dimension.addElements(toAddElementNames.toArray(new String[0]), elementTypes);
 		
-		for (String elementName : uniqueElementNames){
+		for (String elementName : toAddElementNames){
 			elementsAdded.add(elementName);
 		}
 	}
