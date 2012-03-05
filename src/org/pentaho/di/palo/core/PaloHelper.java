@@ -37,16 +37,17 @@ import org.pentaho.di.core.row.ValueMeta;
 import org.pentaho.di.core.row.ValueMetaInterface;
 
 import com.jedox.palojlib.interfaces.ICell;
+import com.jedox.palojlib.interfaces.ICellsExporter;
 import com.jedox.palojlib.interfaces.IConnection;
+import com.jedox.palojlib.interfaces.IConsolidation;
 import com.jedox.palojlib.interfaces.ICube;
-import com.jedox.palojlib.interfaces.ICube.ExportType;
+import com.jedox.palojlib.interfaces.ICube.CellsExportType;
 import com.jedox.palojlib.interfaces.ICube.SplashMode;
 import com.jedox.palojlib.interfaces.IDatabase;
 import com.jedox.palojlib.interfaces.IDimension;
 import com.jedox.palojlib.interfaces.ICube.CubeType;
 import com.jedox.palojlib.interfaces.IElement;
 import com.jedox.palojlib.interfaces.IElement.ElementType;
-import com.jedox.palojlib.main.CellsExporter;
 import com.jedox.palojlib.main.ConnectionConfiguration;
 import com.jedox.palojlib.main.ConnectionManager;
 import com.jedox.palojlib.main.Consolidation;
@@ -146,7 +147,8 @@ public class PaloHelper implements DatabaseFactoryInterface {
 			connConfig.setUsername(databaseMeta.environmentSubstitute(databaseMeta.getUsername()));
 			connConfig.setPassword(databaseMeta.environmentSubstitute(databaseMeta.getPassword()));
 			connConfig.setTimeout(30000);
-			connection = ConnectionManager.getConnection(connConfig);
+			connection = ConnectionManager.getInstance().getConnection(connConfig);
+			connection.open();
 			database = connection.getDatabaseByName(databaseMeta.environmentSubstitute(databaseMeta.getDatabaseName()));
 
 			PaloHelper.connectingToPalo = false;
@@ -528,7 +530,7 @@ public class PaloHelper implements DatabaseFactoryInterface {
 		}
 
 		/* Do a bulk commit with all rows passed to this procedure */
-		cube.loadCells(dimensionRows,dataRows,dataRows.length, addValues, splashMode);
+		cube.loadCells(dimensionRows,dataRows,dataRows.length, addValues, splashMode, false);
 
 	}
 
@@ -556,9 +558,9 @@ public class PaloHelper implements DatabaseFactoryInterface {
 			currentDimensionIndexes[i] = 0;
 		}
 
-		ExportType exportType = ExportType.ONLY_NUMERIC;
+		CellsExportType exportType = CellsExportType.ONLY_NUMERIC;
 		if(rowMeta.getValueMeta(cubeDimensions.length).isString())
-			exportType = ExportType.ONLY_STRING;
+			exportType = CellsExportType.ONLY_STRING;
 
 		// Need to make these parameters on the dialog
 		boolean use_rules = false;
@@ -566,7 +568,7 @@ public class PaloHelper implements DatabaseFactoryInterface {
 		boolean skip_empty = true;
 		int batchSize = 10000;
 
-		CellsExporter exporter = cube.getCellsExporter(cubeDimensionElements, exportType, batchSize, use_rules, base_only, skip_empty);
+		ICellsExporter exporter = cube.getCellsExporter(cubeDimensionElements, exportType, batchSize, use_rules, base_only, skip_empty);
 
 		while (exporter.hasNext()){
 
@@ -741,7 +743,7 @@ public class PaloHelper implements DatabaseFactoryInterface {
 	
 	private Consolidation[] getConsolidations(PaloDimensionCache dimensionCache, ConsolidationCollection consolidationCol) throws KettleException {
 		
-		ArrayList<Consolidation> consolidations = new ArrayList<Consolidation>();
+		ArrayList<IConsolidation> consolidations = new ArrayList<IConsolidation>();
 		
 		// Generate an entry for every consolidation element 
 		for (ConsolidationElement element : consolidationCol){
@@ -753,12 +755,12 @@ public class PaloHelper implements DatabaseFactoryInterface {
 				// The HashTable is used for speed improvements, but it doesn't keep the original sorting.  The original sorting
 				// is important for dimensions that include month names etc.  We need to run it with an ArrayList in parallel
 				// to keep the sorting, but use the HashTable to get quick lookups for increased speed.
-				Hashtable<String, Consolidation> newConsolidations = new Hashtable<String, Consolidation>();
-				ArrayList<Consolidation> sortedNewConsolidations = new ArrayList<Consolidation>();
+				Hashtable<String, IConsolidation> newConsolidations = new Hashtable<String, IConsolidation>();
+				ArrayList<IConsolidation> sortedNewConsolidations = new ArrayList<IConsolidation>();
 				
 				// Read current consolidations if the item existed before.
 				for (IElement child : parentElement.getChildren()) {
-					Consolidation e = dimensionCache.getDimension().newConsolidation(parentElement, child, child.getWeight(parentElement));
+					IConsolidation e = dimensionCache.getDimension().newConsolidation(parentElement, child, child.getWeight(parentElement));
 					newConsolidations.put(child.getName(), e);
 					sortedNewConsolidations.add(e);
 				}
@@ -776,10 +778,10 @@ public class PaloHelper implements DatabaseFactoryInterface {
 					if (newConsolidations.containsKey(childemename) 
 							&& newConsolidations.get(childemename).getWeight() != element.getChildren().get(i).getConsolidationFactor())
 					{
-						Consolidation oldConsol = newConsolidations.get(childemename);
+						IConsolidation oldConsol = newConsolidations.get(childemename);
 						int index = sortedNewConsolidations.indexOf(oldConsol);
 
-						Consolidation updatedConsol = dimensionCache.getDimension().newConsolidation(parentElement, childElement, element.getChildren().get(i).getConsolidationFactor());
+						IConsolidation updatedConsol = dimensionCache.getDimension().newConsolidation(parentElement, childElement, element.getChildren().get(i).getConsolidationFactor());
 						newConsolidations.remove(childemename);
 						newConsolidations.put(childemename, updatedConsol);
 						
@@ -791,7 +793,7 @@ public class PaloHelper implements DatabaseFactoryInterface {
 					}
 
 					if(!newConsolidations.containsKey(childemename)){
-						Consolidation e = dimensionCache.getDimension().newConsolidation(parentElement, childElement, element.getChildren().get(i).getConsolidationFactor());
+						IConsolidation e = dimensionCache.getDimension().newConsolidation(parentElement, childElement, element.getChildren().get(i).getConsolidationFactor());
 						newConsolidations.put(childemename, e);
 						sortedNewConsolidations.add(e);
 						
