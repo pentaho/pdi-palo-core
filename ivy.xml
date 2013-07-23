@@ -11,7 +11,6 @@
   
     <!-- Kettle module dependencies-->
     <dependency org="${kettle.ivy.artifact.group}" name="kettle-core"     rev="${project.revision}" changing="true"/>
-    <dependency org="${kettle.ivy.artifact.group}" name="kettle-db"       rev="${project.revision}" changing="true"/>
     <dependency org="log4j"                        name="log4j"           rev="1.2.16"              transitive="false"/>
     <dependency org="palo"                         name="palojlib"        rev="1.0.73"              transitive="false"/>
                          
