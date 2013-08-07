@@ -1,4 +1,3 @@
-package org.pentaho.di.palo.core;
 /*
  *   This file is part of PaloKettlePlugin.
  *
@@ -14,11 +13,13 @@ package org.pentaho.di.palo.core;
  *
  *   You should have received a copy of the GNU Lesser General Public License
  *   along with PaloKettlePlugin.  If not, see <http://www.gnu.org/licenses/>.
- *   
- *   Copyright 2008 Stratebi Business Solutions, S.L.
- *   Copyright 2010 Pentaho
- *   Copyright 2011 De Bortoli Wines Pty Limited (Australia)
+ *
+ *   Portions Copyright 2008 Stratebi Business Solutions, S.L.
+ *   Portions Copyright 2011 De Bortoli Wines Pty Limited (Australia)
+ *   Portions Copyright 2010 - 2013 Pentaho Corporation
  */
+
+package org.pentaho.di.palo.core;
 
 public class PaloDimensionLevel {
     private String LevelName;

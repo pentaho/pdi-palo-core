@@ -1,5 +1,3 @@
-package org.pentaho.di.palo.core;
-
 /*
  *   This file is part of PaloKettlePlugin.
  *
@@ -18,6 +16,8 @@ package org.pentaho.di.palo.core;
  *
  *   Copyright 2012 De Bortoli Wines Pty Limited (Australia)
  */
+
+package org.pentaho.di.palo.core;
 
 import java.util.ArrayList;
 import java.util.Hashtable;

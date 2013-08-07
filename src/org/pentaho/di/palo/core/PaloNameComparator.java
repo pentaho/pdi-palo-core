@@ -1,5 +1,3 @@
-package org.pentaho.di.palo.core;
-
 /*
  *   This file is part of PaloKettlePlugin.
  *
@@ -15,9 +13,11 @@ package org.pentaho.di.palo.core;
  *
  *   You should have received a copy of the GNU Lesser General Public License
  *   along with PaloKettlePlugin.  If not, see <http://www.gnu.org/licenses/>.
- *   
- *   Copyright 2011 De Bortoli Wines Pty Limited (Australia)
+ *
+ *   Portions Copyright 2011 De Bortoli Wines Pty Limited (Australia)
  */
+
+package org.pentaho.di.palo.core;
 
 /**
  * This class is used to sort Palo cube/dimension names using the Collections.sort function.  System names are sorted last (names
