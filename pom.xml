@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<parent>
+  <groupId>org.pentaho</groupId>
+  <artifactId>pentaho-ce-jar-parent-pom</artifactId>
+  <version>8.0-SNAPSHOT</version>
+</parent>
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>pentaho</groupId>
+  <artifactId>pentaho-palo-core</artifactId>
+  <version>8.0-SNAPSHOT</version>
+  <packaging>jar</packaging>
+  <scm>
+    <developerConnection>scm:git:git@github.com:pentaho/pdi-palo-core.git</developerConnection>
+    <tag>HEAD</tag>
+  </scm>
+  <properties>
+    <kettle.version>8.0-SNAPSHOT</kettle.version>
+    <log4j.version>1.2.16</log4j.version>
+    <palo.version>1.0.73</palo.version>
+    <junit.version>4.12</junit.version>
+  </properties>
+  <dependencies>
+    <dependency>
+      <groupId>pentaho-kettle</groupId>
+      <artifactId>kettle-core</artifactId>
+      <version>${kettle.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>log4j</groupId>
+      <artifactId>log4j</artifactId>
+      <version>${log4j.version}</version>
+      <scope>compile</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>*</groupId>
+          <artifactId>*</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>palo</groupId>
+      <artifactId>palojlib</artifactId>
+      <version>${palo.version}</version>
+      <scope>compile</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>*</groupId>
+          <artifactId>*</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>junit</groupId>
+      <artifactId>junit</artifactId>
+      <version>${junit.version}</version>
+      <scope>test</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>*</groupId>
+          <artifactId>*</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+  </dependencies>
+</project>
