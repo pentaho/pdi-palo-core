@@ -16,7 +16,7 @@
 *
 *   Portions Copyright 2008 Stratebi Business Solutions, S.L.
 *   Portions Copyright 2011 - 2012 De Bortoli Wines Pty Limited (Australia)
-*   Portions Copyright 2010 - 2017 Hitachi Vantara
+*   Portions Copyright 2010 - 2018 Hitachi Vantara
 */
 
 package org.pentaho.di.palo.core;
@@ -29,6 +29,7 @@ import org.apache.log4j.Level;
 import org.pentaho.di.core.Const;
 import org.pentaho.di.core.database.DatabaseFactoryInterface;
 import org.pentaho.di.core.database.DatabaseMeta;
+import org.pentaho.di.core.database.DatabaseTestResults;
 import org.pentaho.di.core.exception.KettleDatabaseException;
 import org.pentaho.di.core.exception.KettleException;
 import org.pentaho.di.core.logging.LogLevel;
@@ -849,6 +850,10 @@ public class PaloHelper implements DatabaseFactoryInterface {
 		collection.add(new PaloOption("ADD", SplashMode.SPLASH_ADD));
 		collection.add(new PaloOption("SET", SplashMode.SPLASH_SET));
 		return collection;
+	}
+
+	public DatabaseTestResults getConnectionTestResults( DatabaseMeta databaseMeta ) {
+		return null;
 	}
 }
 
