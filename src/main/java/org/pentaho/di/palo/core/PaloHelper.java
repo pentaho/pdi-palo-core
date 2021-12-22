@@ -25,7 +25,6 @@ import java.util.ArrayList;
 import java.util.Hashtable;
 import java.util.List;
 
-import org.apache.log4j.Level;
 import org.pentaho.di.core.Const;
 import org.pentaho.di.core.database.DatabaseFactoryInterface;
 import org.pentaho.di.core.database.DatabaseMeta;
@@ -37,6 +36,12 @@ import org.pentaho.di.core.row.RowMeta;
 import org.pentaho.di.core.row.RowMetaInterface;
 import org.pentaho.di.core.row.ValueMeta;
 import org.pentaho.di.core.row.ValueMetaInterface;
+
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.config.Configuration;
+import org.apache.logging.log4j.core.config.LoggerConfig;
 
 import com.jedox.palojlib.interfaces.ICell;
 import com.jedox.palojlib.interfaces.ICellsExporter;
@@ -54,7 +59,6 @@ import com.jedox.palojlib.main.ConnectionConfiguration;
 import com.jedox.palojlib.main.ConnectionManager;
 import com.jedox.palojlib.main.Consolidation;
 import com.jedox.palojlib.main.Database;
-import com.jedox.palojlib.managers.LoggerManager;
 
 public class PaloHelper implements DatabaseFactoryInterface {
 
@@ -141,7 +145,11 @@ public class PaloHelper implements DatabaseFactoryInterface {
 
 			PaloHelper.connectingToPalo = true;
 
-			LoggerManager.getInstance().setLevel(paloAPILogLevel);
+			LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
+			Configuration config = ctx.getConfiguration();
+			LoggerConfig loggerConfig = config.getLoggerConfig("org.pentaho.di.palo");
+			loggerConfig.setLevel(paloAPILogLevel);
+			ctx.updateLoggers();
 			
 			ConnectionConfiguration connConfig = new ConnectionConfiguration();
 			connConfig.setHost(databaseMeta.environmentSubstitute(databaseMeta.getHostname()));
