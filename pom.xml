@@ -16,7 +16,6 @@
   </scm>
   <properties>
     <pdi.version>9.2.0.0-SNAPSHOT</pdi.version>
-    <log4j.version>1.2.16</log4j.version>
     <palo.version>1.0.73</palo.version>
     <junit.version>4.12</junit.version>
   </properties>
@@ -28,15 +27,9 @@
       <scope>provided</scope>
     </dependency>
     <dependency>
-      <groupId>log4j</groupId>
-      <artifactId>log4j</artifactId>
+      <groupId>org.apache.logging.log4j</groupId>
+      <artifactId>log4j-core</artifactId>
       <scope>compile</scope>
-      <exclusions>
-        <exclusion>
-          <groupId>*</groupId>
-          <artifactId>*</artifactId>
-        </exclusion>
-      </exclusions>
     </dependency>
     <dependency>
       <groupId>palo</groupId>
