@@ -3,19 +3,19 @@
 <parent>
   <groupId>org.pentaho</groupId>
   <artifactId>pentaho-ce-jar-parent-pom</artifactId>
-  <version>10.2.0.0-SNAPSHOT</version>
+  <version>10.2.0.6-362</version>
 </parent>
   <modelVersion>4.0.0</modelVersion>
   <groupId>pentaho</groupId>
   <artifactId>pentaho-palo-core</artifactId>
-  <version>10.2.0.0-SNAPSHOT</version>
+  <version>10.2.0.6-362</version>
   <packaging>jar</packaging>
   <scm>
     <developerConnection>scm:git:git@github.com:pentaho/pdi-palo-core.git</developerConnection>
     <tag>HEAD</tag>
   </scm>
   <properties>
-    <pdi.version>10.2.0.0-SNAPSHOT</pdi.version>
+    <pdi.version>10.2.0.6-362</pdi.version>
     <palo.version>1.0.73</palo.version>
     <junit.version>4.12</junit.version>
   </properties>
