@@ -17,7 +17,7 @@
   <properties>
     <pdi.version>11.1.0.0-SNAPSHOT</pdi.version>
     <palo.version>1.0.73</palo.version>
-    <junit.version>4.12</junit.version>
+    <junit.version>4.13.1</junit.version>
   </properties>
   <dependencies>
     <dependency>
